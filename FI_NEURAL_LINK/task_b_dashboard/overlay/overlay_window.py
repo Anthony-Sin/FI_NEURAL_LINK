@@ -12,7 +12,7 @@ class OverlayWindow(tk.Tk):
 
         # Size and position
         self.width = 420
-        self.height = 700
+        self.height = 560
 
         # Get screen dimensions
         screen_width = self.winfo_screenwidth()

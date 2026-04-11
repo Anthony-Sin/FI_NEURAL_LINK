@@ -1,11 +1,12 @@
 """
 This module routes action requests to the appropriate tool functions.
-It incorporates rate limiting and supports actions from mouse_keyboard, windows_control, and launcher modules.
+It incorporates rate limiting and supports actions from mouse_keyboard, windows_control, launcher, and vision modules.
 """
 
 from FI_NEURAL_LINK.task_c_tools.pyautogui_wrapper import mouse_keyboard
 from FI_NEURAL_LINK.task_c_tools.pywinauto_wrapper import windows_control
 from FI_NEURAL_LINK.task_c_tools import launcher
+from FI_NEURAL_LINK.task_c_tools import vision
 from FI_NEURAL_LINK.task_c_tools.safety.rate_limiter import DEFAULT_LIMITER
 from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
 
@@ -27,7 +28,9 @@ class ToolRouter:
             "find_window": windows_control.find_window,
             "click_element": windows_control.click_element,
             "type_in_element": windows_control.type_in_element,
-            "get_window_text": windows_control.get_window_text
+            "get_window_text": windows_control.get_window_text,
+            "read_screen": vision.read_screen,
+            "analyze_screen": vision.analyze_screen
         }
 
     def execute(self, action: str, params: dict) -> dict:
@@ -43,21 +46,20 @@ class ToolRouter:
         func = self.actions.get(action)
         if not func:
             # Try to see if it's an alias or if tool_hint was used instead of exact action name
-            # For example 'launch' instead of 'launch_app'
             if action == "launch":
                 func = self.actions.get("launch_app")
             elif action == "type":
                 func = self.actions.get("type_text")
-            elif action == "read_screen":
-                # Special case for screen perception which might not be in ToolRouter yet
-                return {"ok": False, "result": "Screen perception not yet integrated in ToolRouter"}
 
         if not func:
             return {"ok": False, "result": f"Unknown action: {action}"}
 
         try:
             DEFAULT_LIMITER.record_call()
-            # Unpack params as keyword arguments
-            return func(**params)
+            # Unpack params as keyword arguments (if any)
+            if params:
+                return func(**params)
+            else:
+                return func()
         except Exception as e:
             return {"ok": False, "result": str(e)}
