@@ -1,5 +1,6 @@
 import json
 from ..llm_client.gemini_client import generate_response
+from FI_NEURAL_LINK.config_manager import get_model
 
 def route_goal(goal: str) -> dict:
     """
@@ -40,7 +41,7 @@ def route_goal(goal: str) -> dict:
         "Return ONLY the valid JSON object."
     )
 
-    response_text = generate_response(system_prompt, goal, model_name="gemini-2.5-flash-lite")
+    response_text = generate_response(system_prompt, goal, model_name=get_model("router"))
 
     # Strip potential markdown formatting if the model adds it
     clean_response = response_text.strip()

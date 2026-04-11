@@ -2,17 +2,21 @@ import requests
 from bs4 import BeautifulSoup
 import json
 import os
+from FI_NEURAL_LINK.config_manager import load_config
 from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
 
 def save_webpage_structure(url: str, filename: str = "webpage_structure.json") -> dict:
     """
     Retrieves the real HTML of a webpage, extracts its interactive elements,
-    and saves the structure to a JSON file in the root directory.
+    and saves the structure to a JSON file in the configured directory.
     """
     if STOP_EVENT.is_set():
         return {"ok": False, "result": "Halted by STOP_EVENT"}
 
     try:
+        config = load_config()
+        save_dir_name = config.get("settings", {}).get("save_dir", "web_visited")
+
         response = requests.get(url, timeout=10)
         response.raise_for_status()
 
@@ -68,8 +72,8 @@ def save_webpage_structure(url: str, filename: str = "webpage_structure.json") -
                 "attributes": link.attrs
             })
 
-        # Save to web_visited directory
-        save_dir = os.path.join(os.getcwd(), "web_visited")
+        # Save to configured directory
+        save_dir = os.path.join(os.getcwd(), save_dir_name)
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 

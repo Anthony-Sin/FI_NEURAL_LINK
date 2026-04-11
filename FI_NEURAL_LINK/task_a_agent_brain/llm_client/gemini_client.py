@@ -7,8 +7,9 @@ from dotenv import load_dotenv
 import os
 import google.generativeai as genai
 from google.api_core import exceptions
+from FI_NEURAL_LINK.config_manager import get_model
 
-def generate_response(system_prompt: str, user_message: str, image_data: bytes = None, model_name: str = "gemini-2.5-flash-lite") -> str:
+def generate_response(system_prompt: str, user_message: str, image_data: bytes = None, model_name: str = None) -> str:
     """
     Connects to the Google Gemini API and returns the model's text response.
 
@@ -31,6 +32,9 @@ def generate_response(system_prompt: str, user_message: str, image_data: bytes =
 
     try:
         genai.configure(api_key=api_key)
+
+        if not model_name:
+            model_name = get_model("executor")
 
         model = genai.GenerativeModel(
             model_name=model_name,
