@@ -28,7 +28,7 @@ def route_goal(goal: str) -> dict:
         "When 'heading over' to a URL, you MUST always call 'save_webpage_structure' after opening it.\n"
         "For complex tasks like 'type X into the search bar', use 'smart_web_action' which combines scraping and element discovery. "
         "Signature: smart_web_action(url: str, instruction: str). "
-        "The instruction must be specific: e.g., 'type explain how you work into the search bar'.\n"
+        "The instruction must be highly specific, referencing element IDs or names from your mental model of the structure if possible: e.g., 'type explain how you work into the email input field with id identifierId'.\n"
         "Do not explain further, do not list next steps, do not reason out loud.\n\n"
         "If LONG:\n"
         "Emit a JSON object exactly like this:\n"
