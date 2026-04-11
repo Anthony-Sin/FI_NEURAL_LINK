@@ -66,8 +66,8 @@ def press_key(key):
     except Exception as e:
         return {"ok": False, "result": str(e)}
 
-def hotkey(*keys):
-    """Press a combination of keys (e.g., 'ctrl', 'c')."""
+def hotkey(keys: list):
+    """Press a combination of keys (e.g., ['ctrl', 'c'])."""
     if STOP_EVENT.is_set():
         return {"ok": False, "result": "Halted by STOP_EVENT"}
     try:
