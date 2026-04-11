@@ -7,7 +7,10 @@ from dotenv import load_dotenv
 import os
 import google.generativeai as genai
 from google.api_core import exceptions
+import logging
 from FI_NEURAL_LINK.config_manager import get_model
+
+logger = logging.getLogger("AgentCore")
 
 def generate_response(system_prompt: str, user_message: str, image_data: bytes = None, model_name: str = None) -> str:
     """
@@ -45,8 +48,10 @@ def generate_response(system_prompt: str, user_message: str, image_data: bytes =
         if image_data:
             content.append({"mime_type": "image/png", "data": image_data})
 
-        # Log prompt for debugging as requested by user
-        print(f"--- GEMINI API CALL (Model: {model_name}) ---\nSYSTEM: {system_prompt}\nUSER: {user_message}\n---------------------------------------")
+        # Log prompt for debugging to both file and dashboard
+        logger.debug(f"--- GEMINI API CALL (Model: {model_name}) ---")
+        logger.debug(f"SYSTEM: {system_prompt}")
+        logger.debug(f"USER: {user_message}")
 
         response = model.generate_content(content)
 
