@@ -8,7 +8,6 @@ import os
 import google.generativeai as genai
 from google.api_core import exceptions
 
-
 def generate_response(system_prompt: str, user_message: str, image_data: bytes = None) -> str:
     """
     Connects to the Google Gemini API and returns the model's text response.
@@ -25,7 +24,6 @@ def generate_response(system_prompt: str, user_message: str, image_data: bytes =
         ValueError: If GEMINI_API_KEY is not set.
         Exception: If there is an error with the API call.
     """
-    
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY environment variable is not set.")
