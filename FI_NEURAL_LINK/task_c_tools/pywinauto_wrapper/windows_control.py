@@ -37,8 +37,20 @@ def click_element(window_title: str, control_title: str) -> Dict[str, Union[bool
     if STOP_EVENT.is_set():
         return {"ok": False, "result": "Halted by STOP_EVENT"}
     try:
-        app = Desktop(backend="uia").window(title=window_title)
-        app.child_window(title=control_title).click_input()
+        # Use regex for title finding
+        desktop = Desktop(backend="uia")
+        win = desktop.window(title_re=window_title)
+
+        # Wait for window and bring to front
+        win.wait('ready', timeout=10)
+        win.set_focus()
+
+        # Find element with auto_id, name, or title
+        ctrl = win.child_window(title=control_title, control_type="Button")
+        if not ctrl.exists():
+            ctrl = win.child_window(title=control_title)
+
+        ctrl.click_input()
         return {"ok": True, "result": f"Clicked element '{control_title}' in window '{window_title}'"}
     except Exception as e:
         return {"ok": False, "result": str(e)}
@@ -50,8 +62,19 @@ def type_in_element(window_title: str, control_title: str, text: str) -> Dict[st
     if STOP_EVENT.is_set():
         return {"ok": False, "result": "Halted by STOP_EVENT"}
     try:
-        app = Desktop(backend="uia").window(title=window_title)
-        app.child_window(title=control_title).type_keys(text, with_spaces=True)
+        desktop = Desktop(backend="uia")
+        win = desktop.window(title_re=window_title)
+
+        # Wait for window and bring to front
+        win.wait('ready', timeout=10)
+        win.set_focus()
+
+        # Find element
+        ctrl = win.child_window(title=control_title, control_type="Edit")
+        if not ctrl.exists():
+            ctrl = win.child_window(title=control_title)
+
+        ctrl.type_keys(text, with_spaces=True, click_before=True)
         return {"ok": True, "result": f"Typed '{text}' into element '{control_title}' in window '{window_title}'"}
     except Exception as e:
         return {"ok": False, "result": str(e)}

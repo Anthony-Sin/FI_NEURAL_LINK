@@ -64,6 +64,12 @@ def smart_web_action(url: str, instruction: str, structure_filename: str = "temp
 
         user_msg = f"Structure: {json.dumps(compact_structure)}\nInstruction: {instruction}"
 
+        # Logging exact prompt for user
+        from FI_NEURAL_LINK.task_a_agent_brain.agent_core import AgentCore
+        # We need a logger here, but we can just use print or find the active agent.
+        # For simplicity, we'll log it in a way that shows up in logs.
+        print(f"--- SMART WEB ACTION PROMPT ---\n{user_msg}\n-------------------------------")
+
         response = gemini_client.generate_response(system_prompt, user_msg, model_name=get_model("web_navigator"))
 
         # Clean JSON
