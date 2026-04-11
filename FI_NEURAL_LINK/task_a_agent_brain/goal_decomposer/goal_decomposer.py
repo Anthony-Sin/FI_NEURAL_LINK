@@ -22,6 +22,7 @@ def route_goal(goal: str) -> dict:
         "  }\n"
         "}\n"
         "Valid functions: click, type_text, launch_app, read_screen, analyze_screen, open_url, click_element, type_in_element, wait.\n"
+        "Preferred tool for browser navigation (URLs): 'open_url'. Use 'launch_app' with 'chrome.exe' only to start the browser itself.\n"
         "Do not explain further, do not list next steps, do not reason out loud.\n\n"
         "If LONG:\n"
         "Emit a JSON object exactly like this:\n"
@@ -41,14 +42,19 @@ def route_goal(goal: str) -> dict:
     # Strip potential markdown formatting if the model adds it
     clean_response = response_text.strip()
     if clean_response.startswith("```json"):
-        clean_response = clean_response[len("```json"):].strip()
+        clean_response = clean_response[7:].strip()
     if clean_response.endswith("```"):
-        clean_response = clean_response[:-len("```")].strip()
+        clean_response = clean_response[:-3].strip()
 
+    # Raw response is handled by AgentCore for logging
+    return clean_response
+
+def parse_decision(clean_response: str) -> dict:
+    """Parses the cleaned JSON response into a dictionary."""
     try:
         decision = json.loads(clean_response)
         if not isinstance(decision, dict):
             raise ValueError("Expected a JSON object from the model.")
         return decision
     except json.JSONDecodeError as e:
-        raise ValueError(f"Failed to parse model response as JSON: {str(e)}\nResponse: {response_text}") from e
+        raise ValueError(f"Failed to parse model response as JSON: {str(e)}\nResponse: {clean_response}") from e

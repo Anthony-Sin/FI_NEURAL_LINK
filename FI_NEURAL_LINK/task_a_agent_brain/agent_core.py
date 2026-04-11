@@ -8,7 +8,7 @@ except ImportError:
     winreg = None
 import logging
 from difflib import get_close_matches
-from .goal_decomposer.goal_decomposer import route_goal
+from .goal_decomposer.goal_decomposer import route_goal, parse_decision
 from .llm_client.gemini_client import generate_response
 from .loop_guard import LoopGuard
 from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
@@ -477,7 +477,9 @@ class AgentCore:
         self.log(f"Routing goal: {goal}")
 
         try:
-            decision = route_goal(goal)
+            raw_decision = route_goal(goal)
+            self.log(f"RAW ROUTER RESPONSE: {raw_decision}", "debug")
+            decision = parse_decision(raw_decision)
         except Exception as e:
             self.log(f"Routing failed: {str(e)}", "error")
             return []
@@ -498,6 +500,13 @@ class AgentCore:
         text = decision.get("text", f"Executing {name}")
 
         self.log(f"Short Task: {text}")
+
+        # Resolve path for launch_app if needed
+        if name == "launch_app" and "path" in args:
+            resolved = resolve_app_path(args["path"])
+            if resolved:
+                args["path"] = resolved
+                self.log(f"Resolved app path: {resolved}", "debug")
 
         if self.tool_router:
             tool_result = self.tool_router.execute(name, args)
@@ -631,5 +640,7 @@ class AgentCore:
         clean_response = response.strip()
         if clean_response.startswith("```json"): clean_response = clean_response[7:].strip()
         if clean_response.endswith("```"): clean_response = clean_response[:-3].strip()
+
+        self.log(f"RAW EXECUTOR RESPONSE: {clean_response}", "debug")
 
         return json.loads(clean_response)
