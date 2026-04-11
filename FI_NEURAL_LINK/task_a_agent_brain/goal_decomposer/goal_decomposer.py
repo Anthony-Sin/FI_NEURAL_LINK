@@ -27,7 +27,7 @@ def route_goal(goal: str) -> dict:
         "CRITICAL: Always insert a dynamic 'wait' step after 'launch_app' or 'open_url' (estimate seconds based on likely load time) before any follow-up UI action.\n"
         "When 'heading over' to a URL, you MUST always call 'save_webpage_structure' after opening it.\n"
         "For complex tasks like 'type X into the search bar', use 'smart_web_action' which combines scraping and element discovery. "
-        "Signature: smart_web_action(url: str, instruction: str). "
+        "Signature: smart_web_action(url_domain: str, instruction: str, expected_title_re: str).\n"
         "The instruction must be highly specific, referencing element IDs or names from your mental model of the structure if possible: e.g., 'type explain how you work into the email input field with id identifierId'.\n"
         "Do not explain further, do not list next steps, do not reason out loud.\n\n"
         "If LONG:\n"

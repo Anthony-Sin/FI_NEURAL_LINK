@@ -115,8 +115,41 @@ def get_window_text(window_title: str) -> Dict[str, Union[bool, str]]:
     if STOP_EVENT.is_set():
         return {"ok": False, "result": "Halted by STOP_EVENT"}
     try:
-        app = Desktop(backend="uia").window(title=window_title)
-        texts = app.texts()
+        desktop = Desktop(backend="uia")
+        win = desktop.window(title_re=f".*{window_title}.*")
+        texts = win.texts()
         return {"ok": True, "result": str(texts)}
+    except Exception as e:
+        return {"ok": False, "result": str(e)}
+
+def get_window_elements(window_title_re: str) -> dict:
+    """
+    Walks the UI tree of a window and extracts interactive elements.
+    """
+    if STOP_EVENT.is_set():
+        return {"ok": False, "result": "Halted by STOP_EVENT"}
+    try:
+        desktop = Desktop(backend="uia")
+        win = desktop.window(title_re=window_title_re)
+
+        elements = []
+        # We walk only top-level children and some common types to keep it small
+        # In a real app we might need deeper walking
+        for child in win.descendants():
+            c_type = child.element_info.control_type
+            if c_type in ["Button", "Edit", "Text", "Hyperlink", "ListItem", "MenuItem", "CheckBox"]:
+                elements.append({
+                    "type": c_type,
+                    "title": child.window_text(),
+                    "auto_id": child.element_info.automation_id,
+                    "name": child.element_info.name,
+                    "class": child.element_info.class_name
+                })
+
+        return {
+            "ok": True,
+            "title": win.window_text(),
+            "elements": elements
+        }
     except Exception as e:
         return {"ok": False, "result": str(e)}

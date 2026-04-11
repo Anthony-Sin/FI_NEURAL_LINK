@@ -3,7 +3,15 @@ from bs4 import BeautifulSoup
 import json
 import os
 from FI_NEURAL_LINK.config_manager import load_config
+from FI_NEURAL_LINK.task_c_tools.pywinauto_wrapper import windows_control
 from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
+
+def extract_structure_from_window(window_title_re: str) -> dict:
+    """
+    Uses UI Automation to extract the 'live' structure of a browser window.
+    This preserves the user's active session and cookies.
+    """
+    return windows_control.get_window_elements(window_title_re)
 
 def save_webpage_structure(url: str, filename: str = "webpage_structure.json") -> dict:
     """
