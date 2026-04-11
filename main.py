@@ -40,7 +40,6 @@ def main():
     dashboard.set_on_submit(handle_submit)
 
     # 7. Start the Dashboard
-    dashboard.log("FI_NEURAL_LINK Initialized. Awaiting command...", "info")
 
     print("Dashboard initialized. Launching GUI...")
 
