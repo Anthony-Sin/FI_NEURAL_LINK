@@ -1,0 +1,64 @@
+import os
+import json
+from . import web_scraper
+from .pywinauto_wrapper import windows_control
+from ..task_a_agent_brain.llm_client import gemini_client
+from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
+
+def smart_web_action(url: str, instruction: str, structure_file: str = "webpage_structure.json") -> dict:
+    """
+    Saves webpage structure, analyzes it via Gemini to find the right element,
+    and performs the requested action (click or type).
+    """
+    if STOP_EVENT.is_set():
+        return {"ok": False, "result": "Halted by STOP_EVENT"}
+
+    try:
+        # 1. Save structure
+        save_res = web_scraper.save_webpage_structure(url, structure_file)
+        if not save_res["ok"]:
+            return save_res
+
+        # 2. Read structure
+        with open(structure_file, 'r', encoding='utf-8') as f:
+            structure = json.load(f)
+
+        # 3. Analyze via Gemini Pro to find element and action
+        system_prompt = (
+            "You are a web element locator. Given a JSON representation of a webpage's structure "
+            "and an instruction, identify the best matching element and the action to perform.\n\n"
+            "Return ONLY a JSON object:\n"
+            "{\n"
+            "  \"action\": \"click_element\" or \"type_in_element\",\n"
+            "  \"window_title\": \"exact or regex title\",\n"
+            "  \"control_title\": \"exact title/name from attributes\",\n"
+            "  \"text\": \"text to type (if applicable)\"\n"
+            "}"
+        )
+
+        user_msg = f"Structure: {json.dumps(structure)}\nInstruction: {instruction}"
+
+        response = gemini_client.generate_response(system_prompt, user_msg, model_name="gemini-1.5-pro")
+
+        # Clean JSON
+        clean_response = response.strip()
+        if clean_response.startswith("```json"): clean_response = clean_response[7:].strip()
+        if clean_response.endswith("```"): clean_response = clean_response[:-3].strip()
+
+        decision = json.loads(clean_response)
+
+        # 4. Execute action
+        action = decision.get("action")
+        win_title = decision.get("window_title", ".*")
+        ctrl_title = decision.get("control_title")
+        text = decision.get("text")
+
+        if action == "click_element":
+            return windows_control.click_element(win_title, ctrl_title)
+        elif action == "type_in_element":
+            return windows_control.type_in_element(win_title, ctrl_title, text)
+        else:
+            return {"ok": False, "result": f"Unknown action from discovery: {action}"}
+
+    except Exception as e:
+        return {"ok": False, "result": f"Smart web action failed: {str(e)}"}

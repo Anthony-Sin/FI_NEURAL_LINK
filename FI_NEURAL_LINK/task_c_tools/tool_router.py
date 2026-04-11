@@ -5,7 +5,7 @@ It incorporates rate limiting and supports actions from mouse_keyboard, windows_
 
 from FI_NEURAL_LINK.task_c_tools.pyautogui_wrapper import mouse_keyboard
 from FI_NEURAL_LINK.task_c_tools.pywinauto_wrapper import windows_control
-from FI_NEURAL_LINK.task_c_tools import launcher, vision
+from FI_NEURAL_LINK.task_c_tools import launcher, vision, web_scraper, web_navigator
 from FI_NEURAL_LINK.task_c_tools.safety.rate_limiter import DEFAULT_LIMITER
 from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
 
@@ -25,6 +25,8 @@ class ToolRouter:
             "launch_app": launcher.launch_app,
             "kill_process": launcher.kill_process,
             "wait": launcher.wait,
+            "save_webpage_structure": web_scraper.save_webpage_structure,
+            "smart_web_action": web_navigator.smart_web_action,
             "find_window": windows_control.find_window,
             "click_element": windows_control.click_element,
             "type_in_element": windows_control.type_in_element,
