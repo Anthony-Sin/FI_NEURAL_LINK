@@ -8,33 +8,39 @@ The system follows a strict, linear pipeline to process user intent:
 
 1.  **Input Capture**: The user enters a goal via the **Cyberpunk Dashboard** (text input in `CommandBar`) or via the **Voice System** (audio capture and transcription).
 2.  **Goal Submission**: The dashboard triggers a callback that hands the goal to `AgentCore.run_goal(goal)`.
-3.  **Decomposition**: `AgentCore` invokes the `GoalDecomposer`. This component sends the goal to the **Gemini LLM** with a specialized system prompt, instructing it to break the goal into a JSON list of discrete steps.
+3.  **Decomposition**: `AgentCore` invokes the `GoalDecomposer`. This component sends the goal to the **Gemini LLM** (`gemini-2.5-flash-lite`) with a specialized system prompt, instructing it to break the goal into a JSON list of discrete steps.
 4.  **Step Iteration**: `AgentCore` iterates through the generated steps. For each step:
     *   **Loop Protection**: `LoopGuard` checks if the action is repeating too frequently to prevent infinite loops.
-    *   **Parameter Extraction**: `AgentCore` uses regex-based heuristics to extract specific parameters (URLs, app paths, coordinates, text) from the step's natural language description.
+    *   **Parameter Extraction**: `AgentCore` uses regex-based heuristics to extract specific parameters (URLs, app paths, coordinates, text, window/control titles) from the step's natural language description.
     *   **Tool Routing**: The `tool_hint` (see Execution Contexts) and extracted parameters are passed to the `ToolRouter`.
 5.  **Execution**: The `ToolRouter` verifies the **Global STOP_EVENT** and the **Rate Limiter** before dispatching the command to the underlying automation wrappers (PyAutoGUI, pywinauto, or custom launchers).
 6.  **Logging & Output**: Each step's result (success/failure) is logged back to the dashboard's **Activity Log** in real-time.
 
-## 🧠 Execution Contexts (ECs)
+## 🧠 Execution Contexts (ECs) & Browser Strategy
 
-In FI_NEURAL_LINK, **Execution Contexts** are represented by the `tool_hint` assigned to each decomposed step. The LLM selects the most appropriate EC based on the required action:
+In FI_NEURAL_LINK, **Execution Contexts** are represented by the `tool_hint` assigned to each decomposed step. The LLM selects the most appropriate EC based on the required action, following a specific priority hierarchy for browser-based tasks:
 
+### Browser-First Strategy (Chrome, Edge, Brave, Firefox)
+To ensure reliability and maintain user sessions (cookies), the agent prioritizes local UI inspection over visual models:
+1.  **UI Automation (`click_element`, `type_in_element`)**: Preferred. Inspects the browser window via `pywinauto` to locate and interact with elements by their handles or names.
+2.  **OCR (`read_screen`)**: Fallback. Extracts visible text from the screen if UI elements are not directly accessible.
+3.  **Vision (`analyze_screen`)**: Last Resort. Uses Gemini Vision to semantically interpret the screen when both UI Automation and OCR fail.
+
+### General Contexts
 *   **`launch` / `open_url`**: App/Browser context for starting new tasks.
-*   **`click` / `type`**: Direct hardware interaction context for basic UI manipulation.
-*   **`read_screen`**: OCR context for extracting text-based state from the current display.
-*   **`analyze_screen`**: Vision context for high-level semantic understanding of the UI using Gemini Vision.
-
-The `ToolRouter` acts as the context switchboard, mapping these hints to specific Python functions that interface with the OS.
+*   **`click` / `type`**: Direct hardware interaction context for basic coordinate-based manipulation.
+*   **`read_screen`**: OCR context for extracting text-based state from the display.
+*   **`analyze_screen`**: Vision context for high-level semantic understanding of the UI.
 
 ## 🛠 Capabilities & Models
 
 ### Models Used
-*   **Google Gemini (Text)**: Used for goal decomposition and natural language understanding.
+*   **Google Gemini 2.5 Flash Lite**: Core LLM for goal decomposition and natural language understanding.
 *   **Google Gemini Vision**: Used for multimodal screen analysis and semantic UI perception.
 *   **Tesseract OCR**: Used for fast, local text extraction from screen captures.
 
 ### Capabilities
+*   **Deep UI Inspection**: Can "look inside" Windows applications and browsers to find buttons and fields by title.
 *   **Multimodal Perception**: Can "see" and interpret the screen to answer questions or find elements.
 *   **Cross-App Automation**: Controls any Windows application via element-level (pywinauto) or coordinate-level (PyAutoGUI) interaction.
 *   **Dynamic App Resolution**: Resolves natural language app names (e.g., "chrome") to full filesystem paths via registry and PATH lookups.

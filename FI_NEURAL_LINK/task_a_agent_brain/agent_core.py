@@ -442,6 +442,24 @@ class AgentCore:
         elif tool_hint == "analyze_screen":
             params["question"] = description
 
+        # ── click_element / type_in_element ─────────────────────────────────
+        elif tool_hint in ["click_element", "type_in_element"]:
+            # Attempt to extract window_title and control_title
+            # e.g. "Click 'Search' button in 'Google Chrome' window"
+            window_match = re.search(r'in ["\'](.*?)["\'] window', description, re.IGNORECASE)
+            params["window_title"] = window_match.group(1) if window_match else ".*"
+
+            if tool_hint == "type_in_element":
+                text_match = re.search(r'type ["\'](.*?)["\'] into', description, re.IGNORECASE)
+                params["text"] = text_match.group(1) if text_match else ""
+
+                # Control title is after 'into' and 'text'
+                control_match = re.search(r'into ["\'](.*?)["\']', description, re.IGNORECASE)
+                params["control_title"] = control_match.group(1) if control_match else ""
+            else:
+                control_match = re.search(r'click ["\'](.*?)["\']', description, re.IGNORECASE)
+                params["control_title"] = control_match.group(1) if control_match else ""
+
         return params
 
     # ── Goal Execution ──────────────────────────────────────────────────────

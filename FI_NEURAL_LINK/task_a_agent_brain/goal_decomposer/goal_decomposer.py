@@ -22,7 +22,11 @@ def decompose_goal(goal: str) -> list[dict]:
         "- 'step_id': A unique identifier for the step (e.g., 1, 2, 3).\n"
         "- 'description': A clear description of what needs to be done in this step.\n"
         "- 'tool_hint': The primary tool required for this step. It MUST be one of: "
-        "click, type, launch, read_screen, analyze_screen, open_url.\n\n"
+        "click, type, launch, read_screen, analyze_screen, open_url, click_element, type_in_element.\n\n"
+        "Priority for Browser Actions (Chrome, Edge, Brave, Firefox):\n"
+        "1. Use 'click_element' or 'type_in_element' (UI Automation) to interact with specific buttons/links/inputs by their name/title.\n"
+        "2. Use 'read_screen' (OCR) only if UI elements are inaccessible.\n"
+        "3. Use 'analyze_screen' (Gemini Vision) as a last resort.\n\n"
         "Return ONLY a valid JSON list of these objects."
     )
 
