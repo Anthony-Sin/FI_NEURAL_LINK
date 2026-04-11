@@ -1,94 +1,107 @@
 import tkinter as tk
 import threading
+import re
 from FI_NEURAL_LINK.task_b_dashboard.overlay.overlay_window import OverlayWindow
-from FI_NEURAL_LINK.task_b_dashboard.panels.command_panel import CommandPanel
-from FI_NEURAL_LINK.task_b_dashboard.panels.log_panel import LogPanel
-from FI_NEURAL_LINK.task_b_dashboard.panels.status_bar import StatusBar
+from FI_NEURAL_LINK.task_b_dashboard.panels.header_panel import HeaderPanel
+from FI_NEURAL_LINK.task_b_dashboard.panels.command_bar import CommandBar
+from FI_NEURAL_LINK.task_b_dashboard.panels.middle_panels import MiddlePanels
 from FI_NEURAL_LINK.task_b_dashboard.panels.progress_timer import ProgressTimer
+from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import StopPanel
 from FI_NEURAL_LINK.task_b_dashboard.voice_system import VoiceSystem
-from FI_NEURAL_LINK.task_b_dashboard.theme import CYBER_BLACK, CYBER_YELLOW, CYBER_PINK, FONT_MONO_LARGE
+from FI_NEURAL_LINK.task_b_dashboard.theme import CYBER_BLACK, CYBER_YELLOW
 
 class Dashboard:
     def __init__(self):
         self.root = OverlayWindow()
 
-        # Header Frame
-        header = tk.Frame(self.root, bg=CYBER_BLACK)
-        header.pack(fill="x", padx=10, pady=5)
+        # Main Canvas for background grid
+        self.main_canvas = tk.Canvas(self.root, bg=CYBER_BLACK, highlightthickness=0)
+        self.main_canvas.place(x=0, y=0, relwidth=1, relheight=1)
+        self._animate_grid()
 
-        title_label = tk.Label(
-            header,
-            text="FI_NEURAL_LINK",
-            bg=CYBER_BLACK,
-            fg=CYBER_YELLOW,
-            font=FONT_MONO_LARGE
-        )
-        title_label.pack(side="left")
+        # Layout Container
+        self.layout = tk.Frame(self.root, bg=CYBER_BLACK, highlightthickness=1, highlightbackground=CYBER_YELLOW)
+        self.layout.pack(fill="both", expand=True, padx=5, pady=5)
 
-        # Control Buttons
-        controls = tk.Frame(header, bg=CYBER_BLACK)
-        controls.pack(side="right")
+        # 1. TOP: Model Indicator & Prompt Counter
+        self.header = HeaderPanel(self.layout)
+        self.header.pack(fill="x")
 
-        self.min_btn = tk.Label(
-            controls, text="—", bg=CYBER_BLACK, fg=CYBER_YELLOW,
-            font=("monospace", 12, "bold"), cursor="hand2", padx=5
-        )
-        self.min_btn.pack(side="left")
+        # 2. MIDDLE: Command Bar & Suggestions
+        self.command_bar = CommandBar(self.layout)
+        self.command_bar.pack(fill="x")
+
+        # 3. OUTPUT: modular panels (Logs)
+        self.middle = MiddlePanels(self.layout)
+        self.middle.pack(fill="both", expand=True)
+
+        # 4. BOTTOM: Timer & Status
+        self.timer_status = ProgressTimer(self.layout)
+        self.timer_status.pack(fill="x")
+
+        # 5. HIDDEN: Emergency Stop (Bottommost)
+        self.stop_panel = StopPanel(self.layout)
+        self.stop_panel.pack(fill="x")
+
+        # System Controls
+        self.min_btn = tk.Label(self.header.container, text="—", bg=CYBER_BLACK, fg=CYBER_YELLOW, cursor="hand2")
+        self.min_btn.pack(side="right", padx=5)
         self.min_btn.bind("<Button-1>", lambda e: self.root.minimize())
 
-        self.close_btn = tk.Label(
-            controls, text="X", bg=CYBER_BLACK, fg=CYBER_PINK,
-            font=("monospace", 12, "bold"), cursor="hand2", padx=5
-        )
-        self.close_btn.pack(side="right")
-        self.close_btn.bind("<Button-1>", lambda e: self.root.hide())
-
-        # 1. TOP: Status Bar
-        self.status_bar = StatusBar(self.root)
-        self.status_bar.pack(fill="x")
-
-        # 2. LOGS: Center
-        self.log_panel = LogPanel(self.root)
-        self.log_panel.pack(fill="both", expand=True)
-
-        # 3. MIDDLE: Command Input
-        self.command_panel = CommandPanel(self.root)
-        self.command_panel.pack(fill="x")
-
-        # 4. BOTTOM: Progress & Status
-        self.progress_timer = ProgressTimer(self.root)
-        self.progress_timer.pack(fill="x")
-
-        # Voice System Integration
-        self.voice_system = VoiceSystem(
+        # Voice Integration
+        self.voice = VoiceSystem(
             log_callback=self.log,
-            submit_callback=lambda cmd: self.command_panel.on_submit(cmd) if self.command_panel.on_submit else None
+            submit_callback=lambda t: self.command_bar.on_submit(t) if self.command_bar.on_submit else None
         )
-        self.command_panel.voice_btn.bind("<Button-1>", lambda e: self.voice_system.start_listening())
+        self.command_bar.mic_canvas.bind("<Button-1>", lambda e: self.voice.start_listening())
 
-        # Apply recursive drag binding to all components
+        # Quick Action (Lightning Bolt)
+        self.command_bar.bolt_canvas.bind("<Button-1>", self._quick_action)
+
         self.root.bind_drag_to_all(self.root)
 
+        # State
+        self._timer_remaining = 0
+
+    def _animate_grid(self):
+        self.main_canvas.delete("grid")
+        for i in range(0, 420, 40):
+            self.main_canvas.create_line(i, 0, i, 750, fill="#050505", tags="grid")
+        for i in range(0, 750, 40):
+            self.main_canvas.create_line(0, i, 420, i, fill="#050505", tags="grid")
+        self.root.after(2000, self._animate_grid)
+
+    def _quick_action(self, event):
+        self.log("SYSTEM RECALIBRATION TRIGGERED")
+        self.header.increment_prompt()
+
     def start(self):
-        # Launches the tkinter mainloop in a daemon thread
         threading.Thread(target=self.root.mainloop, daemon=True).start()
 
     def log(self, text, level="info"):
-        self.log_panel.append_line(text, level)
+        self.middle.add_log(text, level)
 
-        # Parse for timer duration (e.g., "25 minutes")
-        import re
+        # Timer parsing
         match = re.search(r'(\d+)\s*minutes?', text, re.IGNORECASE)
         if match:
-            minutes = int(match.group(1))
-            self.progress_timer.start_timer(minutes * 60)
-            self.progress_timer.set_doing(f"ESTIMATED COMPLETION: {minutes} MIN")
+            mins = int(match.group(1))
+            self._timer_remaining = mins * 60
+            self.timer_status.start_timer(self._timer_remaining)
+            self.timer_status.set_doing(f"COUNTDOWN: {mins}M")
+            self._tick_timer()
+        else:
+            self.timer_status.set_doing(text[:20])
+
+    def _tick_timer(self):
+        if self._timer_remaining > 0:
+            self._timer_remaining -= 1
+            # Simulation for reproduction
+            self.header.update_progress(98.9)
+            self.root.after(1000, self._tick_timer)
 
     def set_on_submit(self, callback):
         def wrapped_submit(goal):
-            self.status_bar.increment_counter()
-            self.progress_timer.set_doing(f"EXECUTING: {goal[:20]}...")
-            if callback:
-                callback(goal)
-
-        self.command_panel.on_submit = wrapped_submit
+            self.header.increment_prompt()
+            self.timer_status.set_doing(f"GOAL: {goal[:15]}...")
+            if callback: callback(goal)
+        self.command_bar.on_submit = wrapped_submit
