@@ -8,7 +8,10 @@ class TestGoalDecomposer(unittest.TestCase):
     @patch("FI_NEURAL_LINK.task_a_agent_brain.goal_decomposer.goal_decomposer.generate_response")
     def test_route_goal_success(self, mock_generate_response):
         # Setup mock
-        mock_decision = {"type": "short", "description": "Open browser", "tool_hint": "launch", "params": {}}
+        mock_decision = {
+            "text": "Open browser",
+            "function_call": {"name": "launch_app", "args": {"path": "chrome.exe"}}
+        }
         mock_generate_response.return_value = json.dumps(mock_decision)
 
         # Execute
@@ -21,7 +24,10 @@ class TestGoalDecomposer(unittest.TestCase):
     @patch("FI_NEURAL_LINK.task_a_agent_brain.goal_decomposer.goal_decomposer.generate_response")
     def test_route_goal_with_markdown(self, mock_generate_response):
         # Setup mock with markdown formatting
-        mock_decision = {"type": "short", "description": "Step 1", "tool_hint": "click", "params": {}}
+        mock_decision = {
+            "text": "Clicking",
+            "function_call": {"name": "click", "args": {"x": 100, "y": 200}}
+        }
         mock_generate_response.return_value = "```json\n" + json.dumps(mock_decision) + "\n```"
 
         # Execute
@@ -39,6 +45,24 @@ class TestGoalDecomposer(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             route_goal("Invalid goal")
         self.assertIn("Failed to parse model response as JSON", str(context.exception))
+
+    @patch("FI_NEURAL_LINK.task_a_agent_brain.goal_decomposer.goal_decomposer.generate_response")
+    def test_route_goal_long_handoff(self, mock_generate_response):
+        # Setup mock
+        mock_decision = {
+            "task_type": "long",
+            "goal": "multi step goal",
+            "ui_target": "browser",
+            "iterable_payload": ["item1"],
+            "parameters": {}
+        }
+        mock_generate_response.return_value = json.dumps(mock_decision)
+
+        # Execute
+        result = route_goal("Long goal")
+
+        # Verify
+        self.assertEqual(result, mock_decision)
 
     @patch("FI_NEURAL_LINK.task_a_agent_brain.goal_decomposer.goal_decomposer.generate_response")
     def test_route_goal_not_an_object(self, mock_generate_response):

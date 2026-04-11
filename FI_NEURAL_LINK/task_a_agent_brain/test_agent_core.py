@@ -7,7 +7,10 @@ class TestAgentCore(unittest.TestCase):
     @patch("FI_NEURAL_LINK.task_a_agent_brain.agent_core.route_goal")
     @patch("FI_NEURAL_LINK.task_a_agent_brain.agent_core.generate_response")
     def test_run_goal_short_task(self, mock_generate, mock_route):
-        mock_route.return_value = {"type": "short", "description": "test", "tool_hint": "click", "params": {"x": 1, "y": 2}}
+        mock_route.return_value = {
+            "text": "test",
+            "function_call": {"name": "click", "args": {"x": 1, "y": 2}}
+        }
 
         config = {"gemini_api_key": "test"}
         tool_router = MagicMock()
@@ -19,7 +22,13 @@ class TestAgentCore(unittest.TestCase):
     @patch("FI_NEURAL_LINK.task_a_agent_brain.agent_core.route_goal")
     @patch("FI_NEURAL_LINK.task_a_agent_brain.agent_core.generate_response")
     def test_run_goal_long_task_termination(self, mock_generate, mock_route):
-        mock_route.return_value = {"type": "long", "goal": "test goal", "payload": []}
+        mock_route.return_value = {
+            "task_type": "long",
+            "goal": "test goal",
+            "ui_target": "test",
+            "iterable_payload": [],
+            "parameters": {}
+        }
         mock_generate.return_value = json.dumps({"status": "terminated"})
 
         config = {"gemini_api_key": "test"}

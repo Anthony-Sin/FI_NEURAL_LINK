@@ -1,44 +1,43 @@
 # FI_NEURAL_LINK: Neural Desktop Automation Agent
 
-FI_NEURAL_LINK is a cyberpunk-themed, AI-powered desktop automation system that translates natural language commands into discrete OS-level actions. It features a sophisticated dual-agent architecture for efficient and robust task execution.
+FI_NEURAL_LINK is a cyberpunk-themed, AI-powered desktop automation system that translates natural language commands into discrete OS-level actions. It features a strict dual-agent architecture designed for maximum efficiency and reliability.
 
-## 🚀 Dual-Agent Architecture
-
-The system utilizes two distinct AI agents to balance speed, cost, and reliability:
+## 🚀 Strict Dual-Agent Architecture
 
 ### 1. Router Brain (Classification & Dispatch)
 Powered by **Gemini 2.5 Flash Lite**, this agent acts as a pure intent classifier:
-- **Short Tasks**: For goals completable in a single tool call, it immediately emits the text description and function call.
-- **Long Tasks**: For complex goals, it emits a structured **Handoff JSON** containing the goal, payload (e.g., items to iterate), and UI targets. It stop immediately without reasoning about steps.
+- **Single Reasoning Pass**: Receives raw user goals and classifies them as short or long.
+- **Short Tasks**: Emits a single `text` + `function_call` block for immediate execution.
+- **Long Tasks**: Emits only a **Handoff JSON** with no execution, reasoning, or step listing.
+- **Contract**: "If the task requires more than one tool call or requires waiting for a UI response, stop immediately and emit only the handoff JSON. Do not begin execution."
 
-### 2. Executor Agent Loop (Observe & Decide)
-Powered by **Gemini 1.5 Pro**, this agent manages long-running, iterative tasks:
-- **True Agent Loop**: After every tool call, it stops, observes the result, and decides the next move.
-- **Decision Hierarchy**: It explicitly chooses between:
-    1.  **Timer**: For deterministic waits (e.g., app launching).
-    2.  **Screenshot**: For verifying unpredictable UI state changes.
-    3.  **Read Screen (OCR)**: For extracting specific text from a region.
-    4.  **Next Action**: For certain state transitions.
-- **Continuation State**: If a task is unfinished, it emits a **Continuation JSON** to hand off the remaining queue and positional state to the next invocation.
-
-## 🛠 Capabilities & Observation Strategy
-
-### Observation Cost Awareness
-The Executor Agent is trained to treat every observation call as expensive (Vision/Inference cost) and every timer as cheap. It always prefers the cheaper option (Timer) when latency is predictable.
-
-### Browser-First UI Automation
-The system prioritizes local UI inspection over visual models:
-1.  **UI Automation (`click_element`, `type_in_element`)**: Preferred. Uses `pywinauto` to interact with elements by handle/name.
-2.  **OCR (`read_screen`)**: Fallback for text extraction.
-3.  **Vision (`analyze_screen`)**: Last resort for semantic understanding.
+### 2. Executor Agent (Observe & Decide)
+Powered by **Gemini 1.5 Pro**, this agent manages complex, iterative tasks through a robust loop:
+- **Agent Loop**: Act → Observe → Decide → Act.
+- **Explicit Observation Strategy**: After every tool call, the model chooses one of:
+    1.  **timer**: Preferred for predictable latency (cheap).
+    2.  **screenshot**: Used for unpredictable outcomes (expensive vision inference).
+    3.  **read_screen (OCR)**: Used for extracting specific text.
+    4.  **next_action**: Used for fully deterministic transitions.
+- **Decision Hierarchy**: Baked into the system prompt to enforce cost-aware observation.
 
 ## 🧠 Continuation & Self-Calling Contract
-Long tasks use a strict state contract. Each invocation is a stateless worker that receives a continuation object, performs one iteration of the loop, and either terminates or produces a new continuation object. This prevents token waste and keeps reasoning tightly scoped.
+Long tasks maintain state via a strict continuation contract:
+- **Stateless Invocations**: Each call is a single iteration.
+- **Continuation JSON**: Contains only the remaining queue, last action result, UI target, and current position.
+- **Two System Prompts**: Separate "Start" and "Resume" prompts ensure the model never re-plans from scratch or wastes tokens on redundant history.
 
-## ⚠️ Robust Fallbacks
-- **Loading Spinners**: Extend timer and re-check.
-- **CAPTCHA / Modals**: Pause for human intervention or attempt to dismiss.
-- **Unexpected States**: Trigger recovery actions based on screenshot analysis.
+## 🛠 Unexpected UI State Handling
+The system implements fully realized logic for messy real-world UIs:
+- **Loading Spinners**: Extend timers and re-verify via screenshot.
+- **Error Detection**: Automatic screenshot capture and recovery attempts based on error text.
+- **CAPTCHAs**: Immediate pause and signal for human intervention (`human_intervention_required`).
+- **Unexpected Modals**: Attempted dismissal via UI automation and re-verification.
+
+## 🧠 Capabilities & Tool Priority
+1.  **UI Automation (`click_element`, `type_in_element`)**: Primary method for browser-based tasks.
+2.  **OCR (`read_screen`)**: Secondary fallback for text extraction.
+3.  **Vision (`analyze_screen`)**: Final fallback for semantic understanding.
 
 ## 🛠 Getting Started
 

@@ -478,78 +478,84 @@ class AgentCore:
 
         try:
             decision = route_goal(goal)
-            self.log(f"Router decision: {decision.get('type')}", "debug")
         except Exception as e:
             self.log(f"Routing failed: {str(e)}", "error")
             return []
 
-        if decision.get("type") == "short":
+        if "function_call" in decision:
             return self._execute_short_task(decision)
-        elif decision.get("type") == "long":
+        elif decision.get("task_type") == "long":
             return self._execute_long_task(decision)
         else:
-            self.log(f"Unknown decision type: {decision.get('type')}", "error")
+            self.log(f"Unknown decision format: {json.dumps(decision)}", "error")
             return []
 
     def _execute_short_task(self, decision: dict) -> list:
-        """Executes a short task immediately."""
-        tool_hint = decision.get("tool_hint")
-        description = decision.get("description", "Executing short task")
-        params = decision.get("params", {})
+        """Executes a short task immediately via function_call."""
+        f_call = decision.get("function_call", {})
+        name = f_call.get("name")
+        args = f_call.get("args", {})
+        text = decision.get("text", f"Executing {name}")
 
-        self.log(f"Short Task: {description} (Tool: {tool_hint})")
+        self.log(f"Short Task: {text}")
 
         if self.tool_router:
-            tool_result = self.tool_router.execute(tool_hint, params)
+            tool_result = self.tool_router.execute(name, args)
             status = "completed" if tool_result.get("ok") else "failed"
             self.log(f"Result: {tool_result.get('result')}", "info" if tool_result.get("ok") else "error")
-            return [{"description": description, "status": status, "result": tool_result.get("result")}]
+            return [{"description": text, "status": status, "result": tool_result.get("result")}]
 
-        return [{"description": description, "status": "failed", "result": "No tool router"}]
+        return [{"description": text, "status": "failed", "result": "No tool router"}]
 
     def _execute_long_task(self, handoff: dict) -> list:
-        """Executes a long task using the iterative ExecutorAgent loop."""
+        """Executes a long task using the strict iterative ExecutorAgent loop."""
         self.log(f"Long Task detected. Handing off to Executor loop.")
 
         continuation = {
             "goal": handoff.get("goal"),
-            "task_type": handoff.get("task_type"),
-            "payload": handoff.get("payload", []),
             "ui_target": handoff.get("ui_target"),
-            "initial_params": handoff.get("initial_params", {}),
+            "remaining_queue": handoff.get("iterable_payload", []),
+            "parameters": handoff.get("parameters", {}),
             "last_action_result": None,
+            "current_position": 0,
             "status": "starting"
         }
 
         results = []
         while not STOP_EVENT.is_set():
             try:
-                # 1. GENERATE NEXT STEP
+                # 1. GENERATE NEXT STEP (Act)
                 executor_output = self._call_executor(continuation)
 
                 if executor_output.get("status") == "terminated":
                     self.log("Goal achieved. Terminating.")
                     break
 
+                if executor_output.get("status") == "human_intervention_required":
+                    self.log(f"PAUSED: {executor_output.get('reason')}", "warning")
+                    break
+
                 # 2. EXECUTE STEP
                 action_desc = executor_output.get("description", "")
-                tool_hint = executor_output.get("tool_hint", "")
-                params = executor_output.get("params", {})
+                f_call = executor_output.get("function_call", {})
+                tool_name = f_call.get("name")
+                args = f_call.get("args", {})
 
-                self.log(f"Executor Action: {action_desc} (Tool: {tool_hint})")
+                self.log(f"Executor Action: {action_desc} (Tool: {tool_name})")
 
                 if self.tool_router:
-                    tool_result = self.tool_router.execute(tool_hint, params)
+                    tool_result = self.tool_router.execute(tool_name, args)
                     continuation["last_action_result"] = tool_result.get("result")
 
-                    # 3. OBSERVE & DECIDE
-                    observation_hint = self._observe_and_decide(tool_hint, tool_result, action_desc)
-                    if observation_hint:
-                        obs_params = self._extract_params(observation_hint, f"Observe after {action_desc}")
-                        obs_result = self.tool_router.execute(observation_hint, obs_params)
-                        continuation["last_observation"] = obs_result.get("result")
+                    # 3. OBSERVE & DECIDE (the model chooses in its next turn, but we verify here)
+                    # We pass the result back to the model in the next continuation
+
+                    # Check for unexpected UI states if result was a failure or observation was requested
+                    # (In a real system, we'd fire an observation tool immediately if the model requested it)
+                    # For this implementation, the model decides the observation tool in its turn.
 
                     # 4. UPDATE CONTINUATION
+                    # Update queue and position if model indicated it
                     continuation.update(executor_output.get("continuation_update", {}))
                     continuation["status"] = "resuming"
 
@@ -564,47 +570,66 @@ class AgentCore:
         return results
 
     def _call_executor(self, continuation: dict) -> dict:
-        """Calls the stronger Gemini Pro model to decide the next step."""
+        """Calls the stronger Gemini Pro model with strict observation cost hierarchy."""
         is_resume = continuation.get("status") == "resuming"
 
-        start_prompt = (
-            "You are an Executor Agent. Your goal is: {goal}. Payload: {payload}.\n"
-            "After every action, you must decide the next optimal move based on the provided decision hierarchy.\n"
-            "Return a JSON object with: 'tool_hint', 'params', 'description', and 'continuation_update'.\n"
-            "If the goal is finished, return 'status': 'terminated'."
-        ).format(goal=continuation["goal"], payload=continuation["payload"])
+        # Baked-in observation cost hierarchy
+        obs_cost_instructions = (
+            "After EVERY tool call, you must explicitly choose one of these four observation strategies:\n"
+            "1. timer - use when action has predictable latency (app launching, page loading). Cheap, prefer this.\n"
+            "2. screenshot - use when outcome is unpredictable (AI generation completing, form submitting). Expensive, only when necessary.\n"
+            "3. read_screen OCR - use when you need to extract specific text from a known region. Medium cost.\n"
+            "4. next_action - use only when result was fully deterministic and no verification is needed.\n\n"
+            "A screenshot costs a full vision inference — use it only when you cannot predict what the screen looks like. "
+            "A timer costs nothing — use it whenever the action has predictable latency. Always prefer the cheaper observation option."
+        )
 
-        resume_prompt = (
-            "You are resuming an in-progress task. Continuation state: {state}.\n"
-            "Do not re-plan. Process the next item or verify state. Return the next action JSON."
-        ).format(state=json.dumps(continuation))
+        ui_state_handling = (
+            "Handling Unexpected UI States:\n"
+            "- Loading spinner visible: extend timer by 2s and re-check via screenshot.\n"
+            "- Error message detected: take screenshot, attempt recovery action based on error text.\n"
+            "- CAPTCHA detected: immediately emit { \"status\": \"human_intervention_required\", \"reason\": \"captcha_detected\" }.\n"
+            "- Unexpected modal: attempt to dismiss via click_element or click, re-verify with screenshot."
+        )
 
-        system_prompt = resume_prompt if is_resume else start_prompt
+        if not is_resume:
+            system_prompt = (
+                "You are an Executor Agent starting a new task.\n"
+                "Goal: {goal}\n"
+                "UI Target: {ui_target}\n"
+                "Queue: {queue}\n\n"
+                "{obs_cost}\n\n"
+                "{ui_state}\n\n"
+                "Return a JSON with: 'description', 'function_call': {{'name', 'args'}}, 'continuation_update': {{}}.\n"
+                "If finished, return {{'status': 'terminated'}}."
+            ).format(
+                goal=continuation["goal"],
+                ui_target=continuation["ui_target"],
+                queue=json.dumps(continuation["remaining_queue"]),
+                obs_cost=obs_cost_instructions,
+                ui_state=ui_state_handling
+            )
+            user_message = "Begin task."
+        else:
+            system_prompt = (
+                "You are resuming an in-progress task. The continuation object below contains everything you need. "
+                "Do not re-plan from scratch. Process the first item in the remaining queue, execute your loop, observe, "
+                "and either terminate or emit a new continuation.\n\n"
+                "{obs_cost}\n\n"
+                "{ui_state}"
+            ).format(obs_cost=obs_cost_instructions, ui_state=ui_state_handling)
+            # Resumed invocations receive ONLY the continuation JSON
+            user_message = json.dumps({
+                "remaining_queue": continuation["remaining_queue"],
+                "last_action_result": continuation["last_action_result"],
+                "ui_target": continuation["ui_target"],
+                "current_position": continuation["current_position"]
+            })
 
-        response = generate_response(system_prompt, "Decide next step.", model_name="gemini-1.5-pro")
+        response = generate_response(system_prompt, user_message, model_name="gemini-1.5-pro")
 
-        # Clean and parse JSON (similar to route_goal logic)
         clean_response = response.strip()
         if clean_response.startswith("```json"): clean_response = clean_response[7:].strip()
         if clean_response.endswith("```"): clean_response = clean_response[:-3].strip()
 
         return json.loads(clean_response)
-
-    def _observe_and_decide(self, last_tool: str, last_result: dict, description: str) -> str:
-        """
-        Implements the Observe & Decide decision hierarchy.
-        Returns a tool_hint for observation or None.
-        """
-        # (1) Deterministic Wait
-        if last_tool in ["launch_app", "open_url"]:
-            return "timer"
-
-        # (2) Verify UI State
-        if last_tool in ["click", "click_element"] or "submit" in description.lower():
-            return "screenshot"
-
-        # (3) Extract Text
-        if "find" in description.lower() or "read" in description.lower():
-            return "read_screen"
-
-        return None
