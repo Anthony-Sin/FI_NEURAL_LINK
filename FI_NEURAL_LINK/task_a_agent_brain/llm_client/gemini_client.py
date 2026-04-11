@@ -32,7 +32,7 @@ def generate_response(system_prompt: str, user_message: str, image_data: bytes =
         genai.configure(api_key=api_key)
         # Using gemini-1.5-flash as a default efficient model
         model = genai.GenerativeModel(
-            model_name="gemini-3-flash-preview",
+            model_name="gemini-1.5-flash",
             system_instruction=system_prompt
         )
 
