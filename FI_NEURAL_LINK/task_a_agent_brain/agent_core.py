@@ -2,7 +2,10 @@ import os
 import re
 import json
 import shutil
-import winreg
+try:
+    import winreg
+except ImportError:
+    winreg = None
 import logging
 from difflib import get_close_matches
 from .goal_decomposer.goal_decomposer import decompose_goal
@@ -190,13 +193,15 @@ GEMINI_APP_KEYS: list[str] = sorted(APP_ALIASES.keys())
 
 def _registry_lookup(exe_name: str) -> str | None:
     """Look up an exe in HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths."""
+    if winreg is None:
+        return None
     try:
         key_path = rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{exe_name}"
         with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:
             path, _ = winreg.QueryValueEx(key, "")
             if path and os.path.isfile(path):
                 return path
-    except (FileNotFoundError, OSError):
+    except (FileNotFoundError, OSError, AttributeError):
         pass
     return None
 

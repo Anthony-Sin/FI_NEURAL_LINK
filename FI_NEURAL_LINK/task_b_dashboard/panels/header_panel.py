@@ -1,58 +1,40 @@
 import tkinter as tk
-from ..theme import CYBER_BLUE, CYBER_YELLOW, CYBER_BLACK, CYBER_PINK, FONT_FUTURISTIC_SMALL, FONT_FUTURISTIC_MED
+from ..theme import CYBER_BLUE, CYBER_YELLOW, CYBER_BLACK
 
 class HeaderPanel(tk.Frame):
     def __init__(self, parent):
         super().__init__(parent, bg=CYBER_BLACK)
 
-        self.container = tk.Frame(self, bg=CYBER_BLACK)
-        self.container.pack(fill="x", padx=10, pady=5)
+        # Sync Status Bar (Thin 2px top bar)
+        self.progress_canvas = tk.Canvas(self, height=4, bg="#1a1a00", highlightthickness=0)
+        self.progress_canvas.pack(fill="x")
+        self.bar = self.progress_canvas.create_rectangle(0, 0, 100, 4, fill=CYBER_YELLOW, outline=CYBER_YELLOW)
 
-        # Model Indicator
-        self.model_frame = tk.Frame(self.container, bg=CYBER_BLACK)
-        self.model_frame.pack(side="left")
+        # HUD Container
+        self.hud = tk.Frame(self, bg="#1a1a00", height=30)
+        self.hud.pack(fill="x")
+        self.hud.pack_propagate(False)
 
-        self.led = tk.Canvas(self.model_frame, width=12, height=12, bg=CYBER_BLACK, highlightthickness=0)
-        self.led.pack(side="left", padx=5)
-        self.status_light = self.led.create_oval(2, 2, 10, 10, fill=CYBER_BLUE, outline=CYBER_BLUE)
-
-        self.model_label = tk.Label(
-            self.model_frame,
-            text="MODEL: GEMINI-1.5-FLASH",
-            bg=CYBER_BLACK,
+        self.doing_label = tk.Label(
+            self.hud,
+            text="CURRENTLY_DOING",
+            bg="#1a1a00",
             fg=CYBER_BLUE,
-            font=FONT_FUTURISTIC_SMALL
+            font=("monospace", 8, "bold")
         )
-        self.model_label.pack(side="left")
+        self.doing_label.pack(side="left", padx=10)
 
-        # Prompt Counter
-        self.counter_label = tk.Label(
-            self.container,
-            text="PROMPTS: 0",
-            bg=CYBER_BLACK,
+        self.percent_label = tk.Label(
+            self.hud,
+            text="99.0%",
+            bg="#1a1a00",
             fg=CYBER_YELLOW,
-            font=FONT_FUTURISTIC_SMALL
+            font=("monospace", 10, "bold")
         )
-        self.counter_label.pack(side="right")
+        self.percent_label.pack(side="right", padx=10)
 
-        self.prompt_count = 0
-        self._pulse_state = False
-
-    def increment_prompt(self):
-        self.prompt_count += 1
-        self.counter_label.config(text=f"PROMPTS: {self.prompt_count}")
-
-    def set_model_error(self, active=True):
-        if active:
-            self.model_label.config(fg=CYBER_PINK, text="MODEL: ERROR")
-            self._pulse_pink()
-        else:
-            self.model_label.config(fg=CYBER_BLUE, text="MODEL: GEMINI-1.5-FLASH")
-            self.led.itemconfig(self.status_light, fill=CYBER_BLUE, outline=CYBER_BLUE)
-
-    def _pulse_pink(self):
-        if "ERROR" in self.model_label.cget("text"):
-            color = CYBER_BLACK if self._pulse_state else CYBER_PINK
-            self.led.itemconfig(self.status_light, fill=color, outline=color)
-            self._pulse_state = not self._pulse_state
-            self.after(500, self._pulse_pink)
+    def update_progress(self, percent):
+        self.percent_label.config(text=f"{percent:.1f}%")
+        width = self.winfo_width()
+        if width > 1:
+            self.progress_canvas.coords(self.bar, 0, 0, int(width * (percent/100)), 4)
