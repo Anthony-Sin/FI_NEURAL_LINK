@@ -1,6 +1,9 @@
 # Log files
 agent_execution.log
 
+# Web scraper data
+web_visited/
+
 # Python
 __pycache__/
 *.py[cod]

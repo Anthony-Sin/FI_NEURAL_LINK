@@ -5,23 +5,43 @@ from .pywinauto_wrapper import windows_control
 from ..task_a_agent_brain.llm_client import gemini_client
 from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
 
-def smart_web_action(url: str, instruction: str, structure_file: str = "webpage_structure.json") -> dict:
+def smart_web_action(url: str, instruction: str, structure_filename: str = "temp_structure.json") -> dict:
     """
-    Saves webpage structure, analyzes it via Gemini to find the right element,
-    and performs the requested action (click or type).
+    Saves webpage structure, filters it for token efficiency, analyzes it via Gemini
+    to find the right element, and performs the requested action.
     """
     if STOP_EVENT.is_set():
         return {"ok": False, "result": "Halted by STOP_EVENT"}
 
     try:
         # 1. Save structure
-        save_res = web_scraper.save_webpage_structure(url, structure_file)
+        save_res = web_scraper.save_webpage_structure(url, structure_filename)
         if not save_res["ok"]:
             return save_res
 
-        # 2. Read structure
-        with open(structure_file, 'r', encoding='utf-8') as f:
+        # 2. Read and filter structure for token efficiency
+        save_path = os.path.join(os.getcwd(), "web_visited", structure_filename)
+        with open(save_path, 'r', encoding='utf-8') as f:
             structure = json.load(f)
+
+        # Keep only essential fields for LLM
+        filtered_elements = []
+        for el in structure.get("elements", []):
+            filtered_el = {
+                "type": el["type"],
+                "text": el.get("text"),
+                "id": el.get("id"),
+                "name": el.get("name"),
+                "placeholder": el.get("placeholder")
+            }
+            # Remove null values
+            filtered_el = {k: v for k, v in filtered_el.items() if v is not None}
+            filtered_elements.append(filtered_el)
+
+        compact_structure = {
+            "title": structure.get("title"),
+            "elements": filtered_elements
+        }
 
         # 3. Analyze via Gemini Pro to find element and action
         system_prompt = (
@@ -36,7 +56,7 @@ def smart_web_action(url: str, instruction: str, structure_file: str = "webpage_
             "}"
         )
 
-        user_msg = f"Structure: {json.dumps(structure)}\nInstruction: {instruction}"
+        user_msg = f"Structure: {json.dumps(compact_structure)}\nInstruction: {instruction}"
 
         response = gemini_client.generate_response(system_prompt, user_msg, model_name="gemini-1.5-pro")
 
