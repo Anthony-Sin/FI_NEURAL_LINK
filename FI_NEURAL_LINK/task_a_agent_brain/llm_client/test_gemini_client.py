@@ -25,7 +25,7 @@ class TestGeminiClient(unittest.TestCase):
             model_name="gemini-1.5-flash",
             system_instruction="System Prompt"
         )
-        mock_model_instance.generate_content.assert_called_once_with("User Message")
+        mock_model_instance.generate_content.assert_called_once_with(["User Message"])
         self.assertEqual(response, "Mocked Gemini Response")
 
     @patch.dict(os.environ, {}, clear=True)

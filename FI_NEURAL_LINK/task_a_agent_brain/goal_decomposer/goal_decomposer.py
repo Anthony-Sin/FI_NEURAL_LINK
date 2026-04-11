@@ -1,5 +1,5 @@
 import json
-from FI_NEURAL_LINK.task_a_agent_brain.llm_client.gemini_client import generate_response
+from ..llm_client.gemini_client import generate_response
 
 def decompose_goal(goal: str) -> list[dict]:
     """

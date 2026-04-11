@@ -7,13 +7,14 @@ import os
 import google.generativeai as genai
 from google.api_core import exceptions
 
-def generate_response(system_prompt: str, user_message: str) -> str:
+def generate_response(system_prompt: str, user_message: str, image_data: bytes = None) -> str:
     """
     Connects to the Google Gemini API and returns the model's text response.
 
     Args:
         system_prompt (str): The system prompt to set the context for the model.
         user_message (str): The user message to send to the model.
+        image_data (bytes, optional): Optional image bytes for multimodal input.
 
     Returns:
         str: The model's text response.
@@ -33,7 +34,12 @@ def generate_response(system_prompt: str, user_message: str) -> str:
             model_name="gemini-1.5-flash",
             system_instruction=system_prompt
         )
-        response = model.generate_content(user_message)
+
+        content = [user_message]
+        if image_data:
+            content.append({"mime_type": "image/png", "data": image_data})
+
+        response = model.generate_content(content)
 
         if not response.text:
             raise Exception("The model returned an empty response.")
