@@ -324,7 +324,7 @@ class AgentCore:
                 self.logger.addHandler(ch)
 
     def log(self, text, level="info"):
-        """Legacy log method for compatibility, redirects to logger."""
+        """Directly uses the logger instance."""
         level_map = {
             "debug":    logging.DEBUG,
             "info":     logging.INFO,
@@ -333,140 +333,6 @@ class AgentCore:
             "critical": logging.CRITICAL,
         }
         self.logger.log(level_map.get(level.lower(), logging.INFO), text)
-
-    # ── Parameter Extraction ────────────────────────────────────────────────
-
-    def _extract_params(self, tool_hint: str, description: str) -> dict:
-        """
-        Extract tool parameters from a step description.
-        For launch steps, uses resolve_app_path() with fuzzy matching
-        so Gemini typos and vague names are handled gracefully.
-        """
-        params = {}
-
-        # ── open_url ────────────────────────────────────────────────────────
-        if tool_hint == "open_url":
-            url_match = re.search(r'https?://[^\s]+', description)
-            if url_match:
-                params["url"] = url_match.group(0)
-            else:
-                domain_match = re.search(r'[a-zA-Z0-9.-]+\.[a-z]{2,}', description)
-                if domain_match:
-                    params["url"] = "https://" + domain_match.group(0)
-
-        # ── launch / launch_app ─────────────────────────────────────────────
-        elif tool_hint in ["launch", "launch_app"]:
-            resolved = None
-
-            # 1. Gemini gave us a real path already (e.g. C:\...\chrome.exe)
-            path_match = re.search(r'[A-Za-z]:\\[^\s]+\.exe', description, re.IGNORECASE)
-            if path_match:
-                candidate = path_match.group(0)
-                if os.path.isfile(candidate):
-                    resolved = candidate
-
-            # 2. Strip action verbs and resolve what remains
-            if not resolved:
-                stripped = re.sub(
-                    r'\b(launch|open|start|run|execute|the|browser|application|app)\b',
-                    '', description, flags=re.IGNORECASE
-                ).strip(" .")
-                resolved = resolve_app_path(stripped)
-
-            # 3. Full description as fallback
-            if not resolved:
-                resolved = resolve_app_path(description.strip())
-
-            if not resolved:
-                self.log(
-                    f"Could not resolve a valid executable from: '{description}'. "
-                    f"Hint: valid app keys are e.g. {', '.join(list(APP_ALIASES.keys())[:8])}...",
-                    "error"
-                )
-                params["path"] = ""
-            else:
-                self.log(f"Resolved launch path: '{resolved}'", "debug")
-                params["path"] = resolved
-
-            params["args"] = []
-
-        # ── type / type_text ────────────────────────────────────────────────
-        elif tool_hint in ["type", "type_text"]:
-            text_match = re.search(r'["\'](.*?)["\']', description)
-            if text_match:
-                params["text"] = text_match.group(1)
-            else:
-                params["text"] = re.sub(
-                    r'\b(type|write|enter|input)\b', '', description,
-                    flags=re.IGNORECASE
-                ).strip()
-
-        # ── click ───────────────────────────────────────────────────────────
-        elif tool_hint == "click":
-            coord_match = re.search(r'(\d+)\s*,\s*(\d+)', description)
-            if coord_match:
-                params["x"] = int(coord_match.group(1))
-                params["y"] = int(coord_match.group(2))
-            else:
-                params["x"] = 0
-                params["y"] = 0
-
-        # ── scroll ──────────────────────────────────────────────────────────
-        elif tool_hint == "scroll":
-            direction = "down"
-            if re.search(r'\bup\b', description, re.IGNORECASE):
-                direction = "up"
-            amount_match = re.search(r'(\d+)', description)
-            params["direction"] = direction
-            params["amount"] = int(amount_match.group(1)) if amount_match else 3
-
-        # ── timer / wait ────────────────────────────────────────────────────
-        elif tool_hint in ["timer", "wait"]:
-            amount_match = re.search(r'(\d+(?:\.\d+)?)', description)
-            params["seconds"] = float(amount_match.group(1)) if amount_match else 1.0
-
-        # ── key / hotkey ─────────────────────────────────────────────────
-        elif tool_hint in ["key", "hotkey", "press"]:
-            # e.g. "Press Ctrl+C" or "Press the Enter key"
-            key_match = re.search(
-                r'(ctrl|alt|shift|win|enter|escape|tab|space|backspace|delete|'
-                r'f\d{1,2}|[a-z0-9])',
-                description, re.IGNORECASE
-            )
-            params["key"] = key_match.group(0).lower() if key_match else ""
-
-        # ── screenshot ──────────────────────────────────────────────────────
-        elif tool_hint == "screenshot":
-            filename_match = re.search(r'[\w\-]+\.png', description, re.IGNORECASE)
-            params["filename"] = filename_match.group(0) if filename_match else "screenshot.png"
-
-        # ── read_screen ─────────────────────────────────────────────────────
-        elif tool_hint == "read_screen":
-            pass  # No params needed
-
-        # ── analyze_screen ──────────────────────────────────────────────────
-        elif tool_hint == "analyze_screen":
-            params["question"] = description
-
-        # ── click_element / type_in_element ─────────────────────────────────
-        elif tool_hint in ["click_element", "type_in_element"]:
-            # Attempt to extract window_title and control_title
-            # e.g. "Click 'Search' button in 'Google Chrome' window"
-            window_match = re.search(r'in ["\'](.*?)["\'] window', description, re.IGNORECASE)
-            params["window_title"] = window_match.group(1) if window_match else ".*"
-
-            if tool_hint == "type_in_element":
-                text_match = re.search(r'type ["\'](.*?)["\'] into', description, re.IGNORECASE)
-                params["text"] = text_match.group(1) if text_match else ""
-
-                # Control title is after 'into' and 'text'
-                control_match = re.search(r'into ["\'](.*?)["\']', description, re.IGNORECASE)
-                params["control_title"] = control_match.group(1) if control_match else ""
-            else:
-                control_match = re.search(r'click ["\'](.*?)["\']', description, re.IGNORECASE)
-                params["control_title"] = control_match.group(1) if control_match else ""
-
-        return params
 
     # ── Goal Execution ──────────────────────────────────────────────────────
 
@@ -484,7 +350,7 @@ class AgentCore:
             self.log(f"Routing failed: {str(e)}", "error")
             return []
 
-        if "function_call" in decision:
+        if "function_call" in decision or "function_calls" in decision:
             return self._execute_short_task(decision)
         elif decision.get("task_type") == "long":
             return self._execute_long_task(decision)
@@ -493,28 +359,39 @@ class AgentCore:
             return []
 
     def _execute_short_task(self, decision: dict) -> list:
-        """Executes a short task immediately via function_call."""
-        f_call = decision.get("function_call", {})
-        name = f_call.get("name")
-        args = f_call.get("args", {})
-        text = decision.get("text", f"Executing {name}")
-
+        """Executes a short task immediately via one or more function_calls."""
+        text = decision.get("text", "Executing short task")
         self.log(f"Short Task: {text}")
 
-        # Resolve path for launch_app if needed
-        if name == "launch_app" and "path" in args:
-            resolved = resolve_app_path(args["path"])
-            if resolved:
-                args["path"] = resolved
-                self.log(f"Resolved app path: {resolved}", "debug")
+        f_calls = decision.get("function_calls", [])
+        if "function_call" in decision:
+            f_calls.append(decision["function_call"])
 
-        if self.tool_router:
-            tool_result = self.tool_router.execute(name, args)
-            status = "completed" if tool_result.get("ok") else "failed"
-            self.log(f"Result: {tool_result.get('result')}", "info" if tool_result.get("ok") else "error")
-            return [{"description": text, "status": status, "result": tool_result.get("result")}]
+        results = []
+        for f_call in f_calls:
+            name = f_call.get("name")
+            args = f_call.get("args", {})
 
-        return [{"description": text, "status": "failed", "result": "No tool router"}]
+            # Resolve path for launch_app if needed
+            if name == "launch_app" and "path" in args:
+                resolved = resolve_app_path(args["path"])
+                if resolved:
+                    args["path"] = resolved
+                    self.log(f"Resolved app path: {resolved}", "debug")
+
+            if self.tool_router:
+                tool_result = self.tool_router.execute(name, args)
+                status = "completed" if tool_result.get("ok") else "failed"
+                self.log(f"Step {name} Result: {tool_result.get('result')}", "info" if tool_result.get("ok") else "error")
+                results.append({"description": f"Executed {name}", "status": status, "result": tool_result.get("result")})
+
+                if not tool_result.get("ok"):
+                    break # Stop if a step fails
+            else:
+                results.append({"description": f"Executed {name}", "status": "failed", "result": "No tool router"})
+                break
+
+        return results
 
     def _execute_long_task(self, handoff: dict) -> list:
         """Executes a long task using the strict iterative ExecutorAgent loop."""
