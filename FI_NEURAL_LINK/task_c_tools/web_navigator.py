@@ -3,6 +3,7 @@ import json
 from . import web_scraper
 from .pywinauto_wrapper import windows_control
 from ..task_a_agent_brain.llm_client import gemini_client
+from FI_NEURAL_LINK.config_manager import get_model
 from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
 
 def smart_web_action(url: str, instruction: str, structure_filename: str = "temp_structure.json") -> dict:
@@ -14,13 +15,18 @@ def smart_web_action(url: str, instruction: str, structure_filename: str = "temp
         return {"ok": False, "result": "Halted by STOP_EVENT"}
 
     try:
+        config = get_model("router") # Just to trigger config load if needed, but we use load_config
+        from FI_NEURAL_LINK.config_manager import load_config
+        cfg = load_config()
+        save_dir_name = cfg.get("settings", {}).get("save_dir", "web_visited")
+
         # 1. Save structure
         save_res = web_scraper.save_webpage_structure(url, structure_filename)
         if not save_res["ok"]:
             return save_res
 
         # 2. Read and filter structure for token efficiency
-        save_path = os.path.join(os.getcwd(), "web_visited", structure_filename)
+        save_path = os.path.join(os.getcwd(), save_dir_name, structure_filename)
         with open(save_path, 'r', encoding='utf-8') as f:
             structure = json.load(f)
 
@@ -58,7 +64,7 @@ def smart_web_action(url: str, instruction: str, structure_filename: str = "temp
 
         user_msg = f"Structure: {json.dumps(compact_structure)}\nInstruction: {instruction}"
 
-        response = gemini_client.generate_response(system_prompt, user_msg, model_name="gemini-1.5-pro")
+        response = gemini_client.generate_response(system_prompt, user_msg, model_name=get_model("web_navigator"))
 
         # Clean JSON
         clean_response = response.strip()

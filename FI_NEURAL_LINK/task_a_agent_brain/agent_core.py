@@ -11,6 +11,7 @@ from difflib import get_close_matches
 from .goal_decomposer.goal_decomposer import route_goal, parse_decision
 from .llm_client.gemini_client import generate_response
 from .loop_guard import LoopGuard
+from FI_NEURAL_LINK.config_manager import get_model
 from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
 
 # ---------------------------------------------------------------------------
@@ -514,7 +515,7 @@ class AgentCore:
                 "current_position": continuation["current_position"]
             })
 
-        response = generate_response(system_prompt, user_message, model_name="gemini-1.5-pro")
+        response = generate_response(system_prompt, user_message, model_name=get_model("executor"))
 
         clean_response = response.strip()
         if clean_response.startswith("```json"): clean_response = clean_response[7:].strip()
