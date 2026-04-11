@@ -3,9 +3,11 @@ This module provides a client for interacting with the Google Gemini API.
 It requires the GEMINI_API_KEY environment variable to be set.
 """
 
+from dotenv import load_dotenv
 import os
 import google.generativeai as genai
 from google.api_core import exceptions
+
 
 def generate_response(system_prompt: str, user_message: str, image_data: bytes = None) -> str:
     """
@@ -23,6 +25,7 @@ def generate_response(system_prompt: str, user_message: str, image_data: bytes =
         ValueError: If GEMINI_API_KEY is not set.
         Exception: If there is an error with the API call.
     """
+    
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY environment variable is not set.")
@@ -31,7 +34,7 @@ def generate_response(system_prompt: str, user_message: str, image_data: bytes =
         genai.configure(api_key=api_key)
         # Using gemini-1.5-flash as a default efficient model
         model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
+            model_name="gemini-3-flash-preview",
             system_instruction=system_prompt
         )
 

@@ -53,7 +53,7 @@ class Dashboard:
         threading.Thread(target=self.root.mainloop, daemon=True).start()
 
     def log(self, text, level="info"):
-        self.log_panel.append_line(text, level)
+        self.root.after(0, self.log_panel.append_line, text, level)
 
     def set_on_submit(self, callback):
         self.command_panel.on_submit = callback

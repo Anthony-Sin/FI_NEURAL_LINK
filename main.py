@@ -1,5 +1,6 @@
 import os
 import threading
+import time
 from FI_NEURAL_LINK.task_b_dashboard.dashboard import Dashboard
 from FI_NEURAL_LINK.task_c_tools.tool_router import ToolRouter
 from FI_NEURAL_LINK.task_a_agent_brain.agent_core import AgentCore
@@ -8,7 +9,7 @@ def main():
     # 1. Initialize ToolRouter
     tool_router = ToolRouter()
 
-    # 2. Initialize Dashboard
+    # 2. Initialize Dashboard (creates the Tk root, but does NOT start mainloop yet)
     dashboard = Dashboard()
 
     # 3. Setup AgentCore Configuration
@@ -19,14 +20,12 @@ def main():
     }
 
     # 4. Initialize AgentCore
-    # We pass the dashboard.log method as the log_callback
     agent = AgentCore(config, tool_router=tool_router, log_callback=dashboard.log)
 
     # 5. Define the submission handler
     def handle_submit(goal):
         dashboard.log(f"Received goal: {goal}", "info")
 
-        # Run the agent in a separate thread to keep the UI responsive
         def run_agent():
             try:
                 agent.run_goal(goal)
@@ -38,26 +37,12 @@ def main():
     # 6. Connect Dashboard to the handler
     dashboard.set_on_submit(handle_submit)
 
-    # 7. Start the Dashboard
+    # 7. Log and then run mainloop ON THE MAIN THREAD
     dashboard.log("FI_NEURAL_LINK Initialized. Awaiting command...", "info")
-
-    # In this environment, we might not be able to actually run the tkinter mainloop
-    # so we'll just print a message.
     print("Dashboard initialized. Entry point ready.")
 
-    # For actual usage, you would call:
-    # dashboard.root.mainloop()
-    # But dashboard.start() already launches it in a thread.
-    dashboard.start()
-
-    # Keep the main thread alive if needed, or just let it finish if dashboard.start() is enough.
-    # Since dashboard.start() uses a daemon thread, we should probably keep the main thread alive.
-    import time
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("Shutting down...")
+    # This blocks here on the main thread — which is exactly what Tkinter needs on Windows
+    dashboard.root.mainloop()
 
 if __name__ == "__main__":
     main()
