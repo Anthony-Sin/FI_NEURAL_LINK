@@ -1,36 +1,29 @@
 import json
 from ..llm_client.gemini_client import generate_response
 
-def decompose_goal(goal: str) -> list[dict]:
+def route_goal(goal: str) -> dict:
     """
-    Accepts a plain-English goal and decomposes it into a JSON list of action steps
-    using the Gemini LLM.
-
-    Args:
-        goal (str): The user's goal in plain English.
-
-    Returns:
-        list[dict]: A list of dictionaries representing discrete action steps.
-
-    Raises:
-        ValueError: If the model's response is not valid JSON.
+    Acts as a Router Brain using Gemini Flash Lite.
+    Classifies the goal as 'short' or 'long' and dispatches accordingly.
     """
     system_prompt = (
-        "You are a goal decomposition assistant. Your task is to break down a "
-        "user's goal into a sequence of discrete action steps. "
-        "Each step must be represented as a JSON object with the following keys:\n"
-        "- 'step_id': A unique identifier for the step (e.g., 1, 2, 3).\n"
-        "- 'description': A clear description of what needs to be done in this step.\n"
-        "- 'tool_hint': The primary tool required for this step. It MUST be one of: "
-        "click, type, launch, read_screen, analyze_screen, open_url, click_element, type_in_element.\n\n"
-        "Priority for Browser Actions (Chrome, Edge, Brave, Firefox):\n"
-        "1. Use 'click_element' or 'type_in_element' (UI Automation) to interact with specific buttons/links/inputs by their name/title.\n"
-        "2. Use 'read_screen' (OCR) only if UI elements are inaccessible.\n"
-        "3. Use 'analyze_screen' (Gemini Vision) as a last resort.\n\n"
-        "Return ONLY a valid JSON list of these objects."
+        "You are a pure intent classifier and dispatcher. Your job is to determine "
+        "if a user goal is 'short' (completable in ONE tool call) or 'long' "
+        "(requires iteration, waiting, or multiple interactions).\n\n"
+        "If SHORT:\n"
+        "- Emit a single JSON object with 'type': 'short', 'description': 'one-line desc', "
+        "'tool_hint': 'tool', and 'params': {args}.\n"
+        "- Valid tool_hints: click, type, launch, read_screen, analyze_screen, open_url, click_element, type_in_element.\n"
+        "- Do not explain, do not reason, do not list next steps.\n\n"
+        "If LONG (requires more than one tool call or waiting for UI):\n"
+        "- Stop immediately and emit a structured handoff JSON object with 'type': 'long', "
+        "'goal': the original goal, 'task_type': 'category', 'payload': [iterable items or empty], "
+        "'ui_target': 'main app/window', 'initial_params': {}.\n"
+        "- Forbidden from beginning execution or reasoning about steps.\n\n"
+        "Return ONLY the valid JSON object."
     )
 
-    response_text = generate_response(system_prompt, goal)
+    response_text = generate_response(system_prompt, goal, model_name="gemini-2.5-flash-lite")
 
     # Strip potential markdown formatting if the model adds it
     clean_response = response_text.strip()
@@ -40,9 +33,9 @@ def decompose_goal(goal: str) -> list[dict]:
         clean_response = clean_response[:-len("```")].strip()
 
     try:
-        steps = json.loads(clean_response)
-        if not isinstance(steps, list):
-            raise ValueError("Expected a list of steps from the model.")
-        return steps
+        decision = json.loads(clean_response)
+        if not isinstance(decision, dict):
+            raise ValueError("Expected a JSON object from the model.")
+        return decision
     except json.JSONDecodeError as e:
         raise ValueError(f"Failed to parse model response as JSON: {str(e)}\nResponse: {response_text}") from e

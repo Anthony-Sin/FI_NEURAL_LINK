@@ -13,6 +13,7 @@ all operations will be halted and return an error status.
 import subprocess
 import webbrowser
 import psutil
+import time
 from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
 
 def open_url(url: str) -> dict:
@@ -26,6 +27,16 @@ def open_url(url: str) -> dict:
     try:
         webbrowser.open(url)
         return {"ok": True, "result": f"Opened URL: {url}"}
+    except Exception as e:
+        return {"ok": False, "result": str(e)}
+
+def wait(seconds: float) -> dict:
+    """Waits for the specified number of seconds."""
+    if STOP_EVENT.is_set():
+        return {"ok": False, "result": "Halted by STOP_EVENT"}
+    try:
+        time.sleep(seconds)
+        return {"ok": True, "result": f"Waited for {seconds} seconds"}
     except Exception as e:
         return {"ok": False, "result": str(e)}
 

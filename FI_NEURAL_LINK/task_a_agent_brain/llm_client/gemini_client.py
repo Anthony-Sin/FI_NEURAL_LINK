@@ -8,7 +8,7 @@ import os
 import google.generativeai as genai
 from google.api_core import exceptions
 
-def generate_response(system_prompt: str, user_message: str, image_data: bytes = None) -> str:
+def generate_response(system_prompt: str, user_message: str, image_data: bytes = None, model_name: str = "gemini-2.5-flash-lite") -> str:
     """
     Connects to the Google Gemini API and returns the model's text response.
 
@@ -16,6 +16,7 @@ def generate_response(system_prompt: str, user_message: str, image_data: bytes =
         system_prompt (str): The system prompt to set the context for the model.
         user_message (str): The user message to send to the model.
         image_data (bytes, optional): Optional image bytes for multimodal input.
+        model_name (str): The name of the model to use.
 
     Returns:
         str: The model's text response.
@@ -30,9 +31,9 @@ def generate_response(system_prompt: str, user_message: str, image_data: bytes =
 
     try:
         genai.configure(api_key=api_key)
-        # Using gemini-2.5-flash-lite as requested
+
         model = genai.GenerativeModel(
-            model_name="gemini-2.5-flash-lite",
+            model_name=model_name,
             system_instruction=system_prompt
         )
 

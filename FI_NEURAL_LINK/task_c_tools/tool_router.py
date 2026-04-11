@@ -24,6 +24,7 @@ class ToolRouter:
             "open_url": launcher.open_url,
             "launch_app": launcher.launch_app,
             "kill_process": launcher.kill_process,
+            "wait": launcher.wait,
             "find_window": windows_control.find_window,
             "click_element": windows_control.click_element,
             "type_in_element": windows_control.type_in_element,
@@ -50,6 +51,8 @@ class ToolRouter:
                 func = self.actions.get("launch_app")
             elif action == "type":
                 func = self.actions.get("type_text")
+            elif action == "timer":
+                func = self.actions.get("wait")
 
         if not func:
             return {"ok": False, "result": f"Unknown action: {action}"}

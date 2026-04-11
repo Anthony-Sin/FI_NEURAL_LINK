@@ -8,7 +8,8 @@ except ImportError:
     winreg = None
 import logging
 from difflib import get_close_matches
-from .goal_decomposer.goal_decomposer import decompose_goal
+from .goal_decomposer.goal_decomposer import route_goal
+from .llm_client.gemini_client import generate_response
 from .loop_guard import LoopGuard
 from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
 
@@ -419,6 +420,11 @@ class AgentCore:
             params["direction"] = direction
             params["amount"] = int(amount_match.group(1)) if amount_match else 3
 
+        # ── timer / wait ────────────────────────────────────────────────────
+        elif tool_hint in ["timer", "wait"]:
+            amount_match = re.search(r'(\d+(?:\.\d+)?)', description)
+            params["seconds"] = float(amount_match.group(1)) if amount_match else 1.0
+
         # ── key / hotkey ─────────────────────────────────────────────────
         elif tool_hint in ["key", "hotkey", "press"]:
             # e.g. "Press Ctrl+C" or "Press the Enter key"
@@ -466,78 +472,139 @@ class AgentCore:
 
     def run_goal(self, goal: str) -> list:
         """
-        Decomposes a goal into steps and executes them,
-        checking for loops and STOP_EVENT between each step.
-
-        Args:
-            goal (str): The high-level goal to achieve.
-
-        Returns:
-            list: A list of result dicts for each executed step.
-
-        Raises:
-            RuntimeError: If a loop is detected or STOP_EVENT is set.
+        Routes a goal and executes it using the RouterBrain/ExecutorAgent architecture.
         """
-        self.log(f"Starting goal: {goal}")
+        self.log(f"Routing goal: {goal}")
 
         try:
-            steps = decompose_goal(goal)
-            self.log(f"Goal decomposed into {len(steps)} steps.")
-            self.log(f"Raw decomposition: {json.dumps(steps)}", "debug")
+            decision = route_goal(goal)
+            self.log(f"Router decision: {decision.get('type')}", "debug")
         except Exception as e:
-            self.log(f"Decomposition failed: {str(e)}", "error")
+            self.log(f"Routing failed: {str(e)}", "error")
             return []
 
+        if decision.get("type") == "short":
+            return self._execute_short_task(decision)
+        elif decision.get("type") == "long":
+            return self._execute_long_task(decision)
+        else:
+            self.log(f"Unknown decision type: {decision.get('type')}", "error")
+            return []
+
+    def _execute_short_task(self, decision: dict) -> list:
+        """Executes a short task immediately."""
+        tool_hint = decision.get("tool_hint")
+        description = decision.get("description", "Executing short task")
+        params = decision.get("params", {})
+
+        self.log(f"Short Task: {description} (Tool: {tool_hint})")
+
+        if self.tool_router:
+            tool_result = self.tool_router.execute(tool_hint, params)
+            status = "completed" if tool_result.get("ok") else "failed"
+            self.log(f"Result: {tool_result.get('result')}", "info" if tool_result.get("ok") else "error")
+            return [{"description": description, "status": status, "result": tool_result.get("result")}]
+
+        return [{"description": description, "status": "failed", "result": "No tool router"}]
+
+    def _execute_long_task(self, handoff: dict) -> list:
+        """Executes a long task using the iterative ExecutorAgent loop."""
+        self.log(f"Long Task detected. Handing off to Executor loop.")
+
+        continuation = {
+            "goal": handoff.get("goal"),
+            "task_type": handoff.get("task_type"),
+            "payload": handoff.get("payload", []),
+            "ui_target": handoff.get("ui_target"),
+            "initial_params": handoff.get("initial_params", {}),
+            "last_action_result": None,
+            "status": "starting"
+        }
+
         results = []
+        while not STOP_EVENT.is_set():
+            try:
+                # 1. GENERATE NEXT STEP
+                executor_output = self._call_executor(continuation)
 
-        for step in steps:
-            # Emergency stop check
-            if STOP_EVENT.is_set():
-                self.log("Emergency stop detected. Halting execution.", "error")
-                break
+                if executor_output.get("status") == "terminated":
+                    self.log("Goal achieved. Terminating.")
+                    break
 
-            action_desc = step.get("description", "")
-            tool_hint   = step.get("tool_hint", "")
-            step_id     = step.get("step_id")
+                # 2. EXECUTE STEP
+                action_desc = executor_output.get("description", "")
+                tool_hint = executor_output.get("tool_hint", "")
+                params = executor_output.get("params", {})
 
-            self.log(f"Executing step {step_id}: {action_desc} (Tool: {tool_hint})")
+                self.log(f"Executor Action: {action_desc} (Tool: {tool_hint})")
 
-            # Loop guard check
-            if self.loop_guard.check_loop(action_desc):
-                error_msg = f"Loop detected — agent halted. Last action: {action_desc}"
-                self.log(error_msg, "error")
-                raise RuntimeError(error_msg)
+                if self.tool_router:
+                    tool_result = self.tool_router.execute(tool_hint, params)
+                    continuation["last_action_result"] = tool_result.get("result")
 
-            self.loop_guard.record_action(action_desc)
+                    # 3. OBSERVE & DECIDE
+                    observation_hint = self._observe_and_decide(tool_hint, tool_result, action_desc)
+                    if observation_hint:
+                        obs_params = self._extract_params(observation_hint, f"Observe after {action_desc}")
+                        obs_result = self.tool_router.execute(observation_hint, obs_params)
+                        continuation["last_observation"] = obs_result.get("result")
 
-            result = {
-                "step_id":    step_id,
-                "description": action_desc,
-                "tool_used":  tool_hint,
-                "status":     "skipped",
-                "result":     "No tool router available",
-            }
+                    # 4. UPDATE CONTINUATION
+                    continuation.update(executor_output.get("continuation_update", {}))
+                    continuation["status"] = "resuming"
 
-            if self.tool_router:
-                params = self._extract_params(tool_hint, action_desc)
-                self.log(f"Extracted parameters: {params}", "debug")
-
-                tool_result    = self.tool_router.execute(tool_hint, params)
-                result["status"] = "completed" if tool_result.get("ok") else "failed"
-                result["result"] = tool_result.get("result", "")
-
-                if not tool_result.get("ok"):
-                    self.log(f"Step {step_id} failed: {result['result']}", "error")
+                    results.append({"description": action_desc, "status": "completed" if tool_result.get("ok") else "failed"})
                 else:
-                    self.log(f"Step {step_id} completed: {result['result']}")
-            else:
-                self.log(f"Step {step_id} skipped: No tool router", "warning")
+                    break
 
-            results.append(result)
-
-            if result["status"] == "failed":
-                self.log("Stopping execution due to step failure.", "error")
+            except Exception as e:
+                self.log(f"Executor loop error: {str(e)}", "error")
                 break
 
-        self.log("Goal execution finished.")
         return results
+
+    def _call_executor(self, continuation: dict) -> dict:
+        """Calls the stronger Gemini Pro model to decide the next step."""
+        is_resume = continuation.get("status") == "resuming"
+
+        start_prompt = (
+            "You are an Executor Agent. Your goal is: {goal}. Payload: {payload}.\n"
+            "After every action, you must decide the next optimal move based on the provided decision hierarchy.\n"
+            "Return a JSON object with: 'tool_hint', 'params', 'description', and 'continuation_update'.\n"
+            "If the goal is finished, return 'status': 'terminated'."
+        ).format(goal=continuation["goal"], payload=continuation["payload"])
+
+        resume_prompt = (
+            "You are resuming an in-progress task. Continuation state: {state}.\n"
+            "Do not re-plan. Process the next item or verify state. Return the next action JSON."
+        ).format(state=json.dumps(continuation))
+
+        system_prompt = resume_prompt if is_resume else start_prompt
+
+        response = generate_response(system_prompt, "Decide next step.", model_name="gemini-1.5-pro")
+
+        # Clean and parse JSON (similar to route_goal logic)
+        clean_response = response.strip()
+        if clean_response.startswith("```json"): clean_response = clean_response[7:].strip()
+        if clean_response.endswith("```"): clean_response = clean_response[:-3].strip()
+
+        return json.loads(clean_response)
+
+    def _observe_and_decide(self, last_tool: str, last_result: dict, description: str) -> str:
+        """
+        Implements the Observe & Decide decision hierarchy.
+        Returns a tool_hint for observation or None.
+        """
+        # (1) Deterministic Wait
+        if last_tool in ["launch_app", "open_url"]:
+            return "timer"
+
+        # (2) Verify UI State
+        if last_tool in ["click", "click_element"] or "submit" in description.lower():
+            return "screenshot"
+
+        # (3) Extract Text
+        if "find" in description.lower() or "read" in description.lower():
+            return "read_screen"
+
+        return None
