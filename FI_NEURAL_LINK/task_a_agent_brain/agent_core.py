@@ -1,8 +1,25 @@
 import os
 import re
+import json
+import logging
 from .goal_decomposer.goal_decomposer import decompose_goal
 from .loop_guard import LoopGuard
 from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
+
+class DashboardLogHandler(logging.Handler):
+    """Custom logging handler to send logs to the dashboard callback."""
+    def __init__(self, callback):
+        super().__init__()
+        self.callback = callback
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            level = record.levelname.lower()
+            # Map logging levels to dashboard levels if needed
+            self.callback(msg, level)
+        except Exception:
+            self.handleError(record)
 
 class AgentCore:
     """
@@ -25,13 +42,46 @@ class AgentCore:
         os.environ["GEMINI_API_KEY"] = config.get("gemini_api_key", "")
         self.loop_guard = LoopGuard(n=config.get("loop_window", 5))
         self.tool_router = tool_router
-        self.log_callback = log_callback
+
+        self._setup_logging(log_callback)
+
+    def _setup_logging(self, log_callback):
+        self.logger = logging.getLogger("AgentCore")
+        self.logger.setLevel(logging.DEBUG)
+
+        # Prevent adding multiple handlers if initialized multiple times
+        if not self.logger.handlers:
+            # File handler
+            fh = logging.FileHandler("agent_execution.log", encoding="utf-8")
+            fh.setLevel(logging.DEBUG)
+            file_formatter = logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+            fh.setFormatter(file_formatter)
+            self.logger.addHandler(fh)
+
+            # Dashboard handler
+            if log_callback:
+                dh = DashboardLogHandler(log_callback)
+                dh.setLevel(logging.INFO) # Only send INFO and above to dashboard
+                # Dashboard formatter doesn't need timestamp as dashboard might add its own
+                dh.setFormatter(logging.Formatter('%(message)s'))
+                self.logger.addHandler(dh)
+            else:
+                # Fallback to console if no callback
+                ch = logging.StreamHandler()
+                ch.setLevel(logging.INFO)
+                ch.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
+                self.logger.addHandler(ch)
 
     def log(self, text, level="info"):
-        if self.log_callback:
-            self.log_callback(text, level)
-        else:
-            print(f"[{level.upper()}] {text}")
+        """Legacy log method for compatibility, redirects to logger."""
+        level_map = {
+            "debug": logging.DEBUG,
+            "info": logging.INFO,
+            "warning": logging.WARNING,
+            "error": logging.ERROR,
+            "critical": logging.CRITICAL
+        }
+        self.logger.log(level_map.get(level.lower(), logging.INFO), text)
 
     def _extract_params(self, tool_hint: str, description: str) -> dict:
         """
@@ -91,6 +141,9 @@ class AgentCore:
         self.log(f"Starting goal: {goal}")
         try:
             steps = decompose_goal(goal)
+            self.log(f"Goal decomposed into {len(steps)} steps.")
+            # Log the raw JSON structure from Gemini
+            self.log(f"Raw decomposition: {json.dumps(steps)}", "debug")
         except Exception as e:
             self.log(f"Decomposition failed: {str(e)}", "error")
             return []
@@ -127,6 +180,7 @@ class AgentCore:
 
             if self.tool_router:
                 params = self._extract_params(tool_hint, action_desc)
+                self.log(f"Extracted parameters: {params}", "debug")
 
                 tool_result = self.tool_router.execute(tool_hint, params)
                 result["status"] = "completed" if tool_result.get("ok") else "failed"

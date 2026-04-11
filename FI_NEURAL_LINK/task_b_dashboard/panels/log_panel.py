@@ -29,14 +29,12 @@ class LogPanel(tk.Frame):
         timestamp = datetime.datetime.now().strftime("[%H:%M:%S]")
         full_text = f"{timestamp} {text}\n"
 
-        def _insert():
-            self.text_area.configure(state="normal")
-            self.text_area.insert(tk.END, full_text, level)
-            self.text_area.configure(state="disabled")
-            self.text_area.see(tk.END)
+        self.text_area.configure(state="normal")
+        self.text_area.insert(tk.END, full_text, level)
+        self.text_area.configure(state="disabled")
 
-        # Schedule on the main thread regardless of which thread calls this
-        self.after(0, _insert)
+        # Auto-scroll to bottom
+        self.text_area.see(tk.END)
 
     def clear(self):
         self.text_area.configure(state="normal")
