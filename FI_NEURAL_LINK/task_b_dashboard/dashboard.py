@@ -1,9 +1,9 @@
 import tkinter as tk
 import threading
-from task_b_dashboard.overlay.overlay_window import OverlayWindow
-from task_b_dashboard.panels.command_panel import CommandPanel
-from task_b_dashboard.panels.log_panel import LogPanel
-from task_b_dashboard.panels.stop_panel import StopPanel
+from FI_NEURAL_LINK.task_b_dashboard.overlay.overlay_window import OverlayWindow
+from FI_NEURAL_LINK.task_b_dashboard.panels.command_panel import CommandPanel
+from FI_NEURAL_LINK.task_b_dashboard.panels.log_panel import LogPanel
+from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import StopPanel
 
 class Dashboard:
     def __init__(self):

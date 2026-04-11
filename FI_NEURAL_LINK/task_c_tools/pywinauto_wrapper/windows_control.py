@@ -6,13 +6,13 @@ Every function in this module returns a dictionary with the following format:
     "result": str    # A descriptive message of the outcome or the error encountered.
 }
 
-If the global STOP_EVENT from task_b_dashboard.panels.stop_panel is set,
+If the global STOP_EVENT from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel is set,
 all operations will be halted and return an error status.
 """
 
 from typing import Dict, Union
 from pywinauto import Desktop
-from task_b_dashboard.panels.stop_panel import STOP_EVENT
+from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
 
 def find_window(title_regex: str) -> Dict[str, Union[bool, str]]:
     """
