@@ -47,15 +47,38 @@ class MiddlePanels(tk.Frame):
         self.container = tk.Frame(self, bg=CYBER_BLACK, padx=16, pady=20)
         self.container.pack(fill="both", expand=True)
 
-        self.bars = []
-        initial_logs = ["FI CORE LOADED", "NEURAL LINK ESTABLISHED", "SYSTEM STATUS: OPTIMAL"]
+        # Last Prompt Display
+        self.prompt_label = tk.Label(
+            self.container,
+            text="",
+            bg=CYBER_BLACK,
+            fg="#666666",
+            font=("monospace", 9, "italic"),
+            anchor="w",
+            justify="left"
+        )
+        self.prompt_label.pack(fill="x", pady=(0, 20))
 
-        for log in initial_logs:
-            bar = ActivityBar(self.container, log)
+        self.bars = []
+        # No initial placeholders as per request
+        for _ in range(3):
+            bar = ActivityBar(self.container, "")
             bar.pack(fill="x", pady=6)
+            bar.pack_forget() # Hide until used
             self.bars.append(bar)
 
+    def set_last_prompt(self, text):
+        if text:
+            self.prompt_label.config(text=f"PREVIOUS PROMPT: {text}")
+        else:
+            self.prompt_label.config(text="")
+
     def add_log(self, text, level="info"):
+        # Shift texts and show bars if they were hidden
         for i in range(len(self.bars)-1):
             self.bars[i].update_text(self.bars[i+1].label.cget("text"))
+            if self.bars[i+1].winfo_ismapped():
+                self.bars[i].pack(fill="x", pady=6)
+
         self.bars[-1].update_text(text)
+        self.bars[-1].pack(fill="x", pady=6)

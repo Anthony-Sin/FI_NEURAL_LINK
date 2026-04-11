@@ -3,7 +3,8 @@ from ..theme import CYBER_YELLOW, CYBER_BLACK, CYBER_BLUE, CYBER_PINK
 
 class CommandBar(tk.Frame):
     def __init__(self, parent, on_submit=None):
-        super().__init__(parent, bg=CYBER_BLACK, padx=20, pady=20)
+        super().__init__(parent, bg=CYBER_BLACK, padx=20)
+        self.config(pady=10) # Using config to avoid tuple padding issue in some versions
         self.on_submit = on_submit
         self._suggestion = ""
 
@@ -66,12 +67,25 @@ class CommandBar(tk.Frame):
         self.entry.bind("<Return>", self._handle_submit)
         self.entry.bind("<Tab>", self._use_sugg)
 
-        # Icons
-        self.zap = tk.Label(self.row, text="⚡", bg=CYBER_BLACK, fg=CYBER_BLUE, font=("monospace", 12))
-        self.zap.pack(side="right", padx=5)
+        # Dynamic Mic Button (Bottom)
+        self.mic_frame = tk.Frame(self, bg="#0a0a0a", pady=15)
+        self.mic_frame.pack(side="bottom", fill="x")
 
-        self.mic = tk.Label(self.row, text="🎙", bg=CYBER_BLACK, fg=CYBER_PINK, font=("monospace", 12))
-        self.mic.pack(side="right", padx=5)
+        self.mic_btn = tk.Label(
+            self.mic_frame,
+            text="🎙 SYSTEM_READY :: VOICE_MODE_OFF",
+            bg="#0a0a0a",
+            fg=CYBER_BLUE,
+            font=("monospace", 8, "bold"),
+            cursor="hand2"
+        )
+        self.mic_btn.pack()
+
+    def set_mic_active(self, active):
+        if active:
+            self.mic_btn.config(text="🎙 SYSTEM_LISTENING :: VOICE_MODE_ON", fg=CYBER_PINK)
+        else:
+            self.mic_btn.config(text="🎙 SYSTEM_READY :: VOICE_MODE_OFF", fg=CYBER_BLUE)
 
     def _on_focus(self, e):
         if self.entry.get() == "COMMAND...":
