@@ -607,6 +607,8 @@ class AgentCore:
                 "Goal: {goal}\n"
                 "UI Target: {ui_target}\n"
                 "Queue: {queue}\n\n"
+                "Tools: launch_app (path, args), open_url (url), click, type_text, wait, etc.\n"
+                "To navigate to a page, use 'launch_app' with 'args' or 'open_url'.\n\n"
                 "{obs_cost}\n\n"
                 "{ui_state}\n\n"
                 "Return a JSON with: 'description', 'function_call': {{'name', 'args'}}, 'continuation_update': {{}}.\n"
