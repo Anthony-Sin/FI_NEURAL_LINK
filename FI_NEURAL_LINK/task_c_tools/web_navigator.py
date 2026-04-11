@@ -80,9 +80,11 @@ def smart_web_action(url: str, instruction: str, structure_filename: str = "temp
         text = decision.get("text")
 
         if action == "click_element":
-            return windows_control.click_element(win_title, ctrl_title)
+            res = windows_control.click_element(win_title, ctrl_title)
+            return {"ok": res.get("ok", False), "result": str(res.get("result", res))}
         elif action == "type_in_element":
-            return windows_control.type_in_element(win_title, ctrl_title, text)
+            res = windows_control.type_in_element(win_title, ctrl_title, text)
+            return {"ok": res.get("ok", False), "result": str(res.get("result", res))}
         else:
             return {"ok": False, "result": f"Unknown action from discovery: {action}"}
 
