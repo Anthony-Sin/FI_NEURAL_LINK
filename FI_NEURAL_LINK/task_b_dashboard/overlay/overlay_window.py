@@ -8,19 +8,20 @@ class OverlayWindow(tk.Tk):
         self.attributes("-topmost", True)
         self.attributes("-alpha", 0.92)
         self.overrideredirect(True)
-        self.configure(bg="#0d0d0f")
+        self.configure(bg="#000000", highlightthickness=2, highlightbackground="#fcee0a")
 
         # Size and position
         self.width = 420
-        self.height = 700
+        self.height = 750
 
         # Get screen dimensions
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
 
-        # Calculate position for bottom-right corner
-        x = screen_width - self.width
-        y = screen_height - self.height
+        # Calculate position for bottom-right corner, offset to be above taskbar
+        # We assume a standard taskbar height of approx 50px
+        x = screen_width - self.width - 20
+        y = screen_height - self.height - 60
         self.geometry(f"{self.width}x{self.height}+{x}+{y}")
 
         # Draggable functionality state
@@ -51,4 +52,9 @@ class OverlayWindow(tk.Tk):
         self.deiconify()
 
     def hide(self):
+        self.withdraw()
+
+    def minimize(self):
+        # For overrideredirect windows, we "minimize" by withdrawing or
+        # reducing to a small floating bar. Here we'll withdraw.
         self.withdraw()

@@ -429,6 +429,14 @@ class AgentCore:
             filename_match = re.search(r'[\w\-]+\.png', description, re.IGNORECASE)
             params["filename"] = filename_match.group(0) if filename_match else "screenshot.png"
 
+        # ── read_screen ─────────────────────────────────────────────────────
+        elif tool_hint == "read_screen":
+            pass  # No params needed
+
+        # ── analyze_screen ──────────────────────────────────────────────────
+        elif tool_hint == "analyze_screen":
+            params["question"] = description
+
         return params
 
     # ── Goal Execution ──────────────────────────────────────────────────────
