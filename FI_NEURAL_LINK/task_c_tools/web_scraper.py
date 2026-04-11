@@ -68,10 +68,12 @@ def save_webpage_structure(url: str, filename: str = "webpage_structure.json") -
                 "attributes": link.attrs
             })
 
-        # Save to root directory
-        # Ensure we save next to main.py
-        root_path = os.getcwd()
-        filepath = os.path.join(root_path, filename)
+        # Save to web_visited directory
+        save_dir = os.path.join(os.getcwd(), "web_visited")
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
+        filepath = os.path.join(save_dir, filename)
 
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(structure, f, indent=2, ensure_ascii=False)
