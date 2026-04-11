@@ -45,6 +45,9 @@ def generate_response(system_prompt: str, user_message: str, image_data: bytes =
         if image_data:
             content.append({"mime_type": "image/png", "data": image_data})
 
+        # Log prompt for debugging as requested by user
+        print(f"--- GEMINI API CALL (Model: {model_name}) ---\nSYSTEM: {system_prompt}\nUSER: {user_message}\n---------------------------------------")
+
         response = model.generate_content(content)
 
         if not response.text:
