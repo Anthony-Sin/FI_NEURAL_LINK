@@ -8,7 +8,8 @@ except ImportError:
     winreg = None
 import logging
 from difflib import get_close_matches
-from .goal_decomposer.goal_decomposer import decompose_goal
+from .goal_decomposer.goal_decomposer import route_goal
+from .llm_client.gemini_client import generate_response
 from .loop_guard import LoopGuard
 from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
 
@@ -419,6 +420,11 @@ class AgentCore:
             params["direction"] = direction
             params["amount"] = int(amount_match.group(1)) if amount_match else 3
 
+        # ── timer / wait ────────────────────────────────────────────────────
+        elif tool_hint in ["timer", "wait"]:
+            amount_match = re.search(r'(\d+(?:\.\d+)?)', description)
+            params["seconds"] = float(amount_match.group(1)) if amount_match else 1.0
+
         # ── key / hotkey ─────────────────────────────────────────────────
         elif tool_hint in ["key", "hotkey", "press"]:
             # e.g. "Press Ctrl+C" or "Press the Enter key"
@@ -442,84 +448,188 @@ class AgentCore:
         elif tool_hint == "analyze_screen":
             params["question"] = description
 
+        # ── click_element / type_in_element ─────────────────────────────────
+        elif tool_hint in ["click_element", "type_in_element"]:
+            # Attempt to extract window_title and control_title
+            # e.g. "Click 'Search' button in 'Google Chrome' window"
+            window_match = re.search(r'in ["\'](.*?)["\'] window', description, re.IGNORECASE)
+            params["window_title"] = window_match.group(1) if window_match else ".*"
+
+            if tool_hint == "type_in_element":
+                text_match = re.search(r'type ["\'](.*?)["\'] into', description, re.IGNORECASE)
+                params["text"] = text_match.group(1) if text_match else ""
+
+                # Control title is after 'into' and 'text'
+                control_match = re.search(r'into ["\'](.*?)["\']', description, re.IGNORECASE)
+                params["control_title"] = control_match.group(1) if control_match else ""
+            else:
+                control_match = re.search(r'click ["\'](.*?)["\']', description, re.IGNORECASE)
+                params["control_title"] = control_match.group(1) if control_match else ""
+
         return params
 
     # ── Goal Execution ──────────────────────────────────────────────────────
 
     def run_goal(self, goal: str) -> list:
         """
-        Decomposes a goal into steps and executes them,
-        checking for loops and STOP_EVENT between each step.
-
-        Args:
-            goal (str): The high-level goal to achieve.
-
-        Returns:
-            list: A list of result dicts for each executed step.
-
-        Raises:
-            RuntimeError: If a loop is detected or STOP_EVENT is set.
+        Routes a goal and executes it using the RouterBrain/ExecutorAgent architecture.
         """
-        self.log(f"Starting goal: {goal}")
+        self.log(f"Routing goal: {goal}")
 
         try:
-            steps = decompose_goal(goal)
-            self.log(f"Goal decomposed into {len(steps)} steps.")
-            self.log(f"Raw decomposition: {json.dumps(steps)}", "debug")
+            decision = route_goal(goal)
         except Exception as e:
-            self.log(f"Decomposition failed: {str(e)}", "error")
+            self.log(f"Routing failed: {str(e)}", "error")
             return []
 
+        if "function_call" in decision:
+            return self._execute_short_task(decision)
+        elif decision.get("task_type") == "long":
+            return self._execute_long_task(decision)
+        else:
+            self.log(f"Unknown decision format: {json.dumps(decision)}", "error")
+            return []
+
+    def _execute_short_task(self, decision: dict) -> list:
+        """Executes a short task immediately via function_call."""
+        f_call = decision.get("function_call", {})
+        name = f_call.get("name")
+        args = f_call.get("args", {})
+        text = decision.get("text", f"Executing {name}")
+
+        self.log(f"Short Task: {text}")
+
+        if self.tool_router:
+            tool_result = self.tool_router.execute(name, args)
+            status = "completed" if tool_result.get("ok") else "failed"
+            self.log(f"Result: {tool_result.get('result')}", "info" if tool_result.get("ok") else "error")
+            return [{"description": text, "status": status, "result": tool_result.get("result")}]
+
+        return [{"description": text, "status": "failed", "result": "No tool router"}]
+
+    def _execute_long_task(self, handoff: dict) -> list:
+        """Executes a long task using the strict iterative ExecutorAgent loop."""
+        self.log(f"Long Task detected. Handing off to Executor loop.")
+
+        continuation = {
+            "goal": handoff.get("goal"),
+            "ui_target": handoff.get("ui_target"),
+            "remaining_queue": handoff.get("iterable_payload", []),
+            "parameters": handoff.get("parameters", {}),
+            "last_action_result": None,
+            "current_position": 0,
+            "status": "starting"
+        }
+
         results = []
+        while not STOP_EVENT.is_set():
+            try:
+                # 1. GENERATE NEXT STEP (Act)
+                executor_output = self._call_executor(continuation)
 
-        for step in steps:
-            # Emergency stop check
-            if STOP_EVENT.is_set():
-                self.log("Emergency stop detected. Halting execution.", "error")
-                break
+                if executor_output.get("status") == "terminated":
+                    self.log("Goal achieved. Terminating.")
+                    break
 
-            action_desc = step.get("description", "")
-            tool_hint   = step.get("tool_hint", "")
-            step_id     = step.get("step_id")
+                if executor_output.get("status") == "human_intervention_required":
+                    self.log(f"PAUSED: {executor_output.get('reason')}", "warning")
+                    break
 
-            self.log(f"Executing step {step_id}: {action_desc} (Tool: {tool_hint})")
+                # 2. EXECUTE STEP
+                action_desc = executor_output.get("description", "")
+                f_call = executor_output.get("function_call", {})
+                tool_name = f_call.get("name")
+                args = f_call.get("args", {})
 
-            # Loop guard check
-            if self.loop_guard.check_loop(action_desc):
-                error_msg = f"Loop detected — agent halted. Last action: {action_desc}"
-                self.log(error_msg, "error")
-                raise RuntimeError(error_msg)
+                self.log(f"Executor Action: {action_desc} (Tool: {tool_name})")
 
-            self.loop_guard.record_action(action_desc)
+                if self.tool_router:
+                    tool_result = self.tool_router.execute(tool_name, args)
+                    continuation["last_action_result"] = tool_result.get("result")
 
-            result = {
-                "step_id":    step_id,
-                "description": action_desc,
-                "tool_used":  tool_hint,
-                "status":     "skipped",
-                "result":     "No tool router available",
-            }
+                    # 3. OBSERVE & DECIDE (the model chooses in its next turn, but we verify here)
+                    # We pass the result back to the model in the next continuation
 
-            if self.tool_router:
-                params = self._extract_params(tool_hint, action_desc)
-                self.log(f"Extracted parameters: {params}", "debug")
+                    # Check for unexpected UI states if result was a failure or observation was requested
+                    # (In a real system, we'd fire an observation tool immediately if the model requested it)
+                    # For this implementation, the model decides the observation tool in its turn.
 
-                tool_result    = self.tool_router.execute(tool_hint, params)
-                result["status"] = "completed" if tool_result.get("ok") else "failed"
-                result["result"] = tool_result.get("result", "")
+                    # 4. UPDATE CONTINUATION
+                    # Update queue and position if model indicated it
+                    continuation.update(executor_output.get("continuation_update", {}))
+                    continuation["status"] = "resuming"
 
-                if not tool_result.get("ok"):
-                    self.log(f"Step {step_id} failed: {result['result']}", "error")
+                    results.append({"description": action_desc, "status": "completed" if tool_result.get("ok") else "failed"})
                 else:
-                    self.log(f"Step {step_id} completed: {result['result']}")
-            else:
-                self.log(f"Step {step_id} skipped: No tool router", "warning")
+                    break
 
-            results.append(result)
-
-            if result["status"] == "failed":
-                self.log("Stopping execution due to step failure.", "error")
+            except Exception as e:
+                self.log(f"Executor loop error: {str(e)}", "error")
                 break
 
-        self.log("Goal execution finished.")
         return results
+
+    def _call_executor(self, continuation: dict) -> dict:
+        """Calls the stronger Gemini Pro model with strict observation cost hierarchy."""
+        is_resume = continuation.get("status") == "resuming"
+
+        # Baked-in observation cost hierarchy
+        obs_cost_instructions = (
+            "After EVERY tool call, you must explicitly choose one of these four observation strategies:\n"
+            "1. timer - use when action has predictable latency (app launching, page loading). Cheap, prefer this.\n"
+            "2. screenshot - use when outcome is unpredictable (AI generation completing, form submitting). Expensive, only when necessary.\n"
+            "3. read_screen OCR - use when you need to extract specific text from a known region. Medium cost.\n"
+            "4. next_action - use only when result was fully deterministic and no verification is needed.\n\n"
+            "A screenshot costs a full vision inference — use it only when you cannot predict what the screen looks like. "
+            "A timer costs nothing — use it whenever the action has predictable latency. Always prefer the cheaper observation option."
+        )
+
+        ui_state_handling = (
+            "Handling Unexpected UI States:\n"
+            "- Loading spinner visible: extend timer by 2s and re-check via screenshot.\n"
+            "- Error message detected: take screenshot, attempt recovery action based on error text.\n"
+            "- CAPTCHA detected: immediately emit { \"status\": \"human_intervention_required\", \"reason\": \"captcha_detected\" }.\n"
+            "- Unexpected modal: attempt to dismiss via click_element or click, re-verify with screenshot."
+        )
+
+        if not is_resume:
+            system_prompt = (
+                "You are an Executor Agent starting a new task.\n"
+                "Goal: {goal}\n"
+                "UI Target: {ui_target}\n"
+                "Queue: {queue}\n\n"
+                "{obs_cost}\n\n"
+                "{ui_state}\n\n"
+                "Return a JSON with: 'description', 'function_call': {{'name', 'args'}}, 'continuation_update': {{}}.\n"
+                "If finished, return {{'status': 'terminated'}}."
+            ).format(
+                goal=continuation["goal"],
+                ui_target=continuation["ui_target"],
+                queue=json.dumps(continuation["remaining_queue"]),
+                obs_cost=obs_cost_instructions,
+                ui_state=ui_state_handling
+            )
+            user_message = "Begin task."
+        else:
+            system_prompt = (
+                "You are resuming an in-progress task. The continuation object below contains everything you need. "
+                "Do not re-plan from scratch. Process the first item in the remaining queue, execute your loop, observe, "
+                "and either terminate or emit a new continuation.\n\n"
+                "{obs_cost}\n\n"
+                "{ui_state}"
+            ).format(obs_cost=obs_cost_instructions, ui_state=ui_state_handling)
+            # Resumed invocations receive ONLY the continuation JSON
+            user_message = json.dumps({
+                "remaining_queue": continuation["remaining_queue"],
+                "last_action_result": continuation["last_action_result"],
+                "ui_target": continuation["ui_target"],
+                "current_position": continuation["current_position"]
+            })
+
+        response = generate_response(system_prompt, user_message, model_name="gemini-1.5-pro")
+
+        clean_response = response.strip()
+        if clean_response.startswith("```json"): clean_response = clean_response[7:].strip()
+        if clean_response.endswith("```"): clean_response = clean_response[:-3].strip()
+
+        return json.loads(clean_response)
