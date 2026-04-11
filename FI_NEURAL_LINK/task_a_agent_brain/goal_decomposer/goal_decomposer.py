@@ -22,7 +22,7 @@ def decompose_goal(goal: str) -> list[dict]:
         "- 'step_id': A unique identifier for the step (e.g., 1, 2, 3).\n"
         "- 'description': A clear description of what needs to be done in this step.\n"
         "- 'tool_hint': The primary tool required for this step. It MUST be one of: "
-        "click, type, launch, read_screen, open_url.\n\n"
+        "click, type, launch, read_screen, analyze_screen, open_url.\n\n"
         "Return ONLY a valid JSON list of these objects."
     )
 
