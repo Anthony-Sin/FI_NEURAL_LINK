@@ -1,7 +1,7 @@
 import json
-from ..llm_client.gemini_client import generate_response
-from ..llm_client.json_parser import parse_llm_json
-from FI_NEURAL_LINK.config_manager import get_model
+from .llm_client import generate_response
+from .json_parser import parse_llm_json
+from FI_NEURAL_LINK.core.config import get_model
 
 def route_goal(goal: str, cache_block: str = "") -> str:
     """

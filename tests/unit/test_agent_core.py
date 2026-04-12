@@ -1,11 +1,11 @@
 import unittest
 import json
 from unittest.mock import MagicMock, patch
-from FI_NEURAL_LINK.task_a_agent_brain.agent_core import AgentCore
+from FI_NEURAL_LINK.brain.agent import AgentCore
 
 class TestAgentCore(unittest.TestCase):
-    @patch("FI_NEURAL_LINK.task_a_agent_brain.agent_core.route_goal")
-    @patch("FI_NEURAL_LINK.task_a_agent_brain.agent_core.generate_response")
+    @patch("FI_NEURAL_LINK.brain.agent.route_goal")
+    @patch("FI_NEURAL_LINK.brain.agent.generate_response")
     def test_run_goal_short_task(self, mock_generate, mock_route):
         mock_route.return_value = json.dumps({
             "text": "test",
@@ -19,8 +19,8 @@ class TestAgentCore(unittest.TestCase):
         agent.run_goal("short goal")
         tool_router.execute.assert_called_once_with("click", {"x": 1, "y": 2})
 
-    @patch("FI_NEURAL_LINK.task_a_agent_brain.agent_core.route_goal")
-    @patch("FI_NEURAL_LINK.task_a_agent_brain.agent_core.generate_response")
+    @patch("FI_NEURAL_LINK.brain.agent.route_goal")
+    @patch("FI_NEURAL_LINK.brain.agent.generate_response")
     def test_run_goal_long_task_termination(self, mock_generate, mock_route):
         mock_route.return_value = json.dumps({
             "task_type": "long",

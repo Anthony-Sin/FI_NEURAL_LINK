@@ -6,7 +6,7 @@ Every function in this module returns a dictionary with the following format:
     "result": str    # A descriptive message of the outcome or the error encountered.
 }
 
-If the global STOP_EVENT from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel is set,
+If the global STOP_EVENT from FI_NEURAL_LINK.ui.panels.stop_panel is set,
 all operations will be halted and return an error status.
 """
 
@@ -15,7 +15,7 @@ import subprocess
 import webbrowser
 import psutil
 import time
-from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
+from FI_NEURAL_LINK.ui.panels.stop_panel import STOP_EVENT
 
 def open_url(url: str) -> dict:
     """Opens the given URL in the default web browser."""

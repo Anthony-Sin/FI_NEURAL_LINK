@@ -1,11 +1,11 @@
 import tkinter as tk
 import threading
-from FI_NEURAL_LINK.task_b_dashboard.overlay.overlay_window import OverlayWindow
-from FI_NEURAL_LINK.task_b_dashboard.panels.header_panel import HeaderPanel
-from FI_NEURAL_LINK.task_b_dashboard.panels.middle_panels import MiddlePanels
-from FI_NEURAL_LINK.task_b_dashboard.panels.command_bar import CommandBar
-from FI_NEURAL_LINK.task_b_dashboard.theme import CYBER_BLACK, CYBER_YELLOW
-from FI_NEURAL_LINK.task_b_dashboard.voice_system import VoiceSystem
+from FI_NEURAL_LINK.ui.overlay.overlay_window import OverlayWindow
+from FI_NEURAL_LINK.ui.panels.header_panel import HeaderPanel
+from FI_NEURAL_LINK.ui.panels.middle_panels import MiddlePanels
+from FI_NEURAL_LINK.ui.panels.command_bar import CommandBar
+from FI_NEURAL_LINK.ui.theme import CYBER_BLACK, CYBER_YELLOW
+from FI_NEURAL_LINK.ui.voice_system import VoiceSystem
 
 class Dashboard:
     def __init__(self):

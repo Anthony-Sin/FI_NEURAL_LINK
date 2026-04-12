@@ -2,9 +2,9 @@ import requests
 from bs4 import BeautifulSoup
 import json
 import os
-from FI_NEURAL_LINK.config_manager import load_config
-from FI_NEURAL_LINK.task_c_tools.pywinauto_wrapper import windows_control
-from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
+from FI_NEURAL_LINK.core.config import load_config
+from FI_NEURAL_LINK.tools.automation import windows_control
+from FI_NEURAL_LINK.ui.panels.stop_panel import STOP_EVENT
 
 def extract_structure_from_window(window_title_re: str) -> dict:
     """

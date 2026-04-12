@@ -8,7 +8,7 @@ import os
 import google.generativeai as genai
 from google.api_core import exceptions
 import logging
-from FI_NEURAL_LINK.config_manager import get_model
+from FI_NEURAL_LINK.core.config import get_model
 
 logger = logging.getLogger("AgentCore")
 

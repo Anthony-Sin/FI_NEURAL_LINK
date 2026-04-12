@@ -3,12 +3,14 @@ This module routes action requests to the appropriate tool functions.
 It incorporates rate limiting and supports actions from mouse_keyboard, windows_control, and launcher modules.
 """
 
-from FI_NEURAL_LINK.task_c_tools.pyautogui_wrapper import mouse_keyboard
-from FI_NEURAL_LINK.task_c_tools.pywinauto_wrapper import windows_control
-from FI_NEURAL_LINK.task_c_tools import launcher, vision, web_scraper, web_navigator, terminal
-from FI_NEURAL_LINK.task_c_tools.safety.rate_limiter import RateLimiter
-from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
-from FI_NEURAL_LINK.config_manager import load_config
+from FI_NEURAL_LINK.tools.automation import mouse_keyboard
+from FI_NEURAL_LINK.tools.automation import windows_control
+from FI_NEURAL_LINK.tools.system import launcher, terminal
+from FI_NEURAL_LINK.tools.web import navigator, scraper
+from FI_NEURAL_LINK.tools.vision import agent_vision as vision
+from FI_NEURAL_LINK.tools.security.rate_limiter import RateLimiter
+from FI_NEURAL_LINK.ui.panels.stop_panel import STOP_EVENT
+from FI_NEURAL_LINK.core.config import load_config
 
 class ToolRouter:
     def __init__(self):
@@ -32,8 +34,8 @@ class ToolRouter:
             "launch_app": launcher.launch_app,
             "kill_process": launcher.kill_process,
             "wait": launcher.wait,
-            "save_webpage_structure": web_scraper.save_webpage_structure,
-            "smart_web_action": web_navigator.smart_web_action,
+            "save_webpage_structure": scraper.save_webpage_structure,
+            "smart_web_action": navigator.smart_web_action,
             "find_window": windows_control.find_window,
             "click_element": windows_control.click_element,
             "type_in_element": windows_control.type_in_element,

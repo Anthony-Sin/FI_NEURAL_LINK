@@ -1,12 +1,12 @@
 import os
 import json
 import re
-from . import web_scraper
-from .pywinauto_wrapper import windows_control
-from ..task_a_agent_brain.llm_client import gemini_client
-from ..task_a_agent_brain.llm_client.json_parser import parse_llm_json
-from FI_NEURAL_LINK.config_manager import get_model
-from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
+from . import scraper
+from ..automation import windows_control
+from ...brain import llm_client as gemini_client
+from ...brain.json_parser import parse_llm_json
+from FI_NEURAL_LINK.core.config import get_model
+from FI_NEURAL_LINK.ui.panels.stop_panel import STOP_EVENT
 
 def smart_web_action(url_domain: str, instruction: str, expected_title_re: str = ".*") -> dict:
     """
@@ -31,14 +31,14 @@ def smart_web_action(url_domain: str, instruction: str, expected_title_re: str =
 
         # If the direct domain search fails, we'll try a broader search inside extract_structure_from_window
         # which now has fallbacks in windows_control._get_window
-        obs_res = web_scraper.extract_structure_from_window(search_title)
+        obs_res = scraper.extract_structure_from_window(search_title)
 
         # Update web_visited folder during interactive sessions
         if obs_res.get("ok"):
             try:
                 # We reuse the filename convention or create one from domain
                 clean_domain = url_domain.replace(".", "_")
-                web_scraper.save_webpage_structure(url=f"uia_capture://{url_domain}", filename=f"live_{clean_domain}.json")
+                scraper.save_webpage_structure(url=f"uia_capture://{url_domain}", filename=f"live_{clean_domain}.json")
             except:
                 pass # Non-critical if background save fails
 

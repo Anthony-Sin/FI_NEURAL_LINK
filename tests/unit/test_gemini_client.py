@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 import os
-from FI_NEURAL_LINK.task_a_agent_brain.llm_client.gemini_client import generate_response
+from FI_NEURAL_LINK.brain.llm_client import generate_response
 
 class TestGeminiClient(unittest.TestCase):
 

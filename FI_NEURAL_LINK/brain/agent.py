@@ -8,13 +8,13 @@ except ImportError:
     winreg = None
 import logging
 from difflib import get_close_matches
-from .goal_decomposer.goal_decomposer import route_goal, parse_decision
-from .llm_client.gemini_client import generate_response
-from .llm_client.json_parser import parse_llm_json
-from .loop_guard import LoopGuard
-from .cache_manager import CacheManager
-from FI_NEURAL_LINK.config_manager import get_model
-from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
+from .decomposer import route_goal, parse_decision
+from .llm_client import generate_response
+from .json_parser import parse_llm_json
+from .guard import LoopGuard
+from .cache import CacheManager
+from FI_NEURAL_LINK.core.config import get_model
+from FI_NEURAL_LINK.ui.panels.stop_panel import STOP_EVENT
 
 # ---------------------------------------------------------------------------
 # APP ALIAS MAP
