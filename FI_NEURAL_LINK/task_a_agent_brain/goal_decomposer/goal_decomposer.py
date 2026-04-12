@@ -1,8 +1,9 @@
 import json
 from ..llm_client.gemini_client import generate_response
+from ..llm_client.json_parser import parse_llm_json
 from FI_NEURAL_LINK.config_manager import get_model
 
-def route_goal(goal: str) -> dict:
+def route_goal(goal: str) -> str:
     """
     Acts as a Router Brain using Gemini Flash Lite.
     Classifies the goal as 'short' or 'long' and dispatches accordingly.
@@ -27,7 +28,7 @@ def route_goal(goal: str) -> dict:
         "- click_element(window_title, control_title)\n"
         "- type_in_element(window_title, control_title, text)\n"
         "CRITICAL: Always insert a dynamic 'wait' step after 'launch_app' or 'open_url' (estimate seconds based on likely load time) before any follow-up UI action.\n"
-        "When launching a browser (msedge.exe or chrome.exe), ALWAYS include the \"--new-window\" flag in the 'args' list to ensure a clean workspace.\n"
+        "When launching a browser (msedge.exe or chrome.exe), ALWAYS include the \"--new-window\" flag in the 'args' list to ensure a clean workspace. If the user provides a URL, append it to the args list after the flag.\n"
         "When 'heading over' to a URL, you MUST always call 'save_webpage_structure' after opening it.\n"
         "For complex tasks like 'type X into the search bar', ALWAYS prefer 'smart_web_action' which combines scraping and element discovery. "
         "Signature: smart_web_action(url_domain: str, instruction: str, expected_title_re: str).\n"
@@ -49,23 +50,9 @@ def route_goal(goal: str) -> dict:
     )
 
     response_text = generate_response(system_prompt, goal, model_name=get_model("router"))
+    # Raw response text is returned for logging
+    return response_text
 
-    # Strip potential markdown formatting if the model adds it
-    clean_response = response_text.strip()
-    if clean_response.startswith("```json"):
-        clean_response = clean_response[7:].strip()
-    if clean_response.endswith("```"):
-        clean_response = clean_response[:-3].strip()
-
-    # Raw response is handled by AgentCore for logging
-    return clean_response
-
-def parse_decision(clean_response: str) -> dict:
-    """Parses the cleaned JSON response into a dictionary."""
-    try:
-        decision = json.loads(clean_response)
-        if not isinstance(decision, dict):
-            raise ValueError("Expected a JSON object from the model.")
-        return decision
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Failed to parse model response as JSON: {str(e)}\nResponse: {clean_response}") from e
+def parse_decision(raw_response: str) -> dict:
+    """Parses the JSON response into a dictionary."""
+    return parse_llm_json(raw_response)

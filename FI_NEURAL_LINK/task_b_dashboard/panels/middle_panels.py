@@ -38,8 +38,22 @@ class ActivityBar(tk.Frame):
         self._pulse_state = not self._pulse_state
         self.after(600, self._pulse)
 
-    def update_text(self, text):
-        self.label.config(text=text.upper())
+    def update_text(self, text, level="info"):
+        # Truncate and uppercase for consistency
+        clean_text = text.strip().upper()
+        if len(clean_text) > 40:
+            clean_text = clean_text[:37] + "..."
+        self.label.config(text=clean_text)
+
+        # Color code based on level
+        color_map = {
+            "info": CYBER_YELLOW,
+            "success": "#00ff88", # Cyber Green
+            "warning": "#ffaa00", # Cyber Orange
+            "error": CYBER_PINK,
+            "debug": "#00f0ff"    # Cyber Blue
+        }
+        self.label.config(fg=color_map.get(level.lower(), CYBER_YELLOW))
 
 
 # ── Middle Panel ──────────────────────────────────────────────────────────────
@@ -62,9 +76,9 @@ class MiddlePanels(tk.Frame):
         )
         self.prompt_label.pack(fill="x", pady=(0, 14))
 
-        # 3 bars, all hidden until logs arrive
+        # 5 bars for more history, all hidden until logs arrive
         self.bars: list[ActivityBar] = []
-        for _ in range(3):
+        for _ in range(5):
             bar = ActivityBar(self.container, "")
             bar.pack(fill="x", pady=5)
             bar.pack_forget()
@@ -72,14 +86,23 @@ class MiddlePanels(tk.Frame):
 
     def set_last_prompt(self, text: str):
         if text:
-            self.prompt_label.config(text=f"PREVIOUS PROMPT: {text}")
+            # Handle long prompts with ellipsis
+            display_text = (text[:45] + '...') if len(text) > 48 else text
+            self.prompt_label.config(text=f"PREVIOUS PROMPT: {display_text}")
         else:
             self.prompt_label.config(text="")
 
     def add_log(self, text: str, level: str = "info"):
+        # Shift logs up (keeping colors/levels)
         for i in range(len(self.bars) - 1):
-            self.bars[i].update_text(self.bars[i + 1].label.cget("text"))
-            if self.bars[i + 1].winfo_ismapped():
+            next_bar = self.bars[i + 1]
+            next_text = next_bar.label.cget("text")
+            next_color = next_bar.label.cget("fg")
+
+            self.bars[i].label.config(text=next_text, fg=next_color)
+            if next_text:
                 self.bars[i].pack(fill="x", pady=5)
-        self.bars[-1].update_text(text)
+
+        # Add new log at the bottom
+        self.bars[-1].update_text(text, level)
         self.bars[-1].pack(fill="x", pady=5)

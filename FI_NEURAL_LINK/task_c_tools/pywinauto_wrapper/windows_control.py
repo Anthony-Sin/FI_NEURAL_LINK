@@ -79,6 +79,12 @@ def _find_element(win, identifier: str, control_types: list = None):
 
     return None
 
+def _resolve_win(obj, name: str = "window"):
+    """Helper to resolve a Specification to a Wrapper if needed."""
+    if hasattr(obj, 'wait'):
+        return obj.wait('ready', timeout=10)
+    return obj
+
 def _get_window(window_title_re: str):
     """Internal helper to find a window with fallbacks. Returns a WindowSpecification."""
     desktop = Desktop(backend="uia")
@@ -135,8 +141,7 @@ def click_element(window_title: str, control_title: str) -> Dict[str, Union[bool
         if not win_obj:
              return {"ok": False, "result": f"Could not find window matching '{window_title}'"}
 
-        # Resolve specification to actual wrapper to ensure properties are accessible
-        win = win_obj.wait('ready', timeout=10) if hasattr(win_obj, 'wait') else win_obj
+        win = _resolve_win(win_obj)
         win.set_focus()
 
         ctrl = _find_element(win, control_title, ["Button", "Hyperlink", "Text", "MenuItem"])
@@ -159,7 +164,7 @@ def type_in_element(window_title: str, control_title: str, text: str) -> Dict[st
         if not win_obj:
              return {"ok": False, "result": f"Could not find window matching '{window_title}'"}
 
-        win = win_obj.wait('ready', timeout=10) if hasattr(win_obj, 'wait') else win_obj
+        win = _resolve_win(win_obj)
         win.set_focus()
 
         ctrl = _find_element(win, control_title, ["Edit", "Document", "Text", "ComboBox", "ListItem"])
@@ -209,7 +214,7 @@ def get_window_elements(window_title_re: str) -> dict:
         if not win_obj:
              return {"ok": False, "result": f"Could not find window matching '{window_title_re}'"}
 
-        win = win_obj.wait('exists', timeout=5) if hasattr(win_obj, 'wait') else win_obj
+        win = _resolve_win(win_obj)
 
         elements = []
         # We walk only top-level children and some common types to keep it small

@@ -28,20 +28,20 @@ class TestGoalDecomposer(unittest.TestCase):
             "text": "Clicking",
             "function_call": {"name": "click", "args": {"x": 100, "y": 200}}
         }
-        mock_generate_response.return_value = "```json\n" + json.dumps(mock_decision) + "\n```"
+        raw_val = "```json\n" + json.dumps(mock_decision) + "\n```"
+        mock_generate_response.return_value = raw_val
 
         # Execute
         result = route_goal("Do something")
 
         # Verify
-        self.assertEqual(result, json.dumps(mock_decision))
+        self.assertEqual(result, raw_val)
 
-    @patch("FI_NEURAL_LINK.task_a_agent_brain.goal_decomposer.goal_decomposer.generate_response")
-    def test_parse_decision_invalid_json(self, mock_generate_response):
+    def test_parse_decision_invalid_json(self):
         # Execute and Verify
         with self.assertRaises(ValueError) as context:
             parse_decision("Not a JSON")
-        self.assertIn("Failed to parse model response as JSON", str(context.exception))
+        self.assertIn("Invalid JSON format in LLM response", str(context.exception))
 
     @patch("FI_NEURAL_LINK.task_a_agent_brain.goal_decomposer.goal_decomposer.generate_response")
     def test_route_goal_long_handoff(self, mock_generate_response):
@@ -68,7 +68,7 @@ class TestGoalDecomposer(unittest.TestCase):
         # Execute and Verify
         with self.assertRaises(ValueError) as context:
             parse_decision(raw)
-        self.assertIn("Expected a JSON object from the model.", str(context.exception))
+        self.assertIn("LLM response is not a JSON object", str(context.exception))
 
 if __name__ == "__main__":
     unittest.main()

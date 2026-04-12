@@ -75,11 +75,12 @@ class Dashboard:
 
     def _check_for_timer(self, text: str):
         import re
-        match = re.search(r'timer.*?(\d+)', text, re.IGNORECASE)
+        # Support both 'timer 5' and 'timer 5 minutes'
+        match = re.search(r'timer\s*(\d+(?:\.\d+)?)\s*(?:min|minute|sec|second)?', text, re.IGNORECASE)
         if match:
-            mins = int(match.group(1))
-            self.log(f"SETTING TIMER: {mins} MINUTES", "success")
-            self.header.start_timer(mins * 60)
+            val = float(match.group(1))
+            self.log(f"SETTING TIMER: {val} UNITS", "success")
+            self.header.start_timer(int(val * 60))
 
     def _voice_log(self, text: str, level: str = "info"):
         self.log(text, level)

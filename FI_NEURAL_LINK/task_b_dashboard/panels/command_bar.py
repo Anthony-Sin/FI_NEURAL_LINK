@@ -6,6 +6,8 @@ class CommandBar(tk.Frame):
         super().__init__(parent, bg=CYBER_BLACK)
         self.on_submit = on_submit
         self._suggestion = ""
+        self._history = []
+        self._history_idx = -1
 
         # ── Yellow top separator ──────────────────────────────────────────────
         self.top_line = tk.Frame(self, bg=CYBER_YELLOW, height=1)
@@ -22,24 +24,38 @@ class CommandBar(tk.Frame):
         )
         self.chevron.pack(side="left", padx=(0, 6))
 
-        # Entry
-        self.entry = tk.Entry(
-            self.row,
+        # Entry (Using Text for dynamic expansion)
+        self.entry_frame = tk.Frame(self.row, bg=CYBER_BLACK)
+        self.entry_frame.pack(side="left", fill="x", expand=True)
+
+        self.entry = tk.Text(
+            self.entry_frame,
             bg=CYBER_BLACK,
             fg="#555500",                           # dim placeholder colour
             insertbackground=CYBER_YELLOW,
             font=("Consolas", 9, "bold italic"),
             relief="flat",
             borderwidth=0,
-            highlightthickness=0
+            highlightthickness=0,
+            height=1,
+            undo=True
         )
-        self.entry.pack(side="left", fill="x", expand=True)
-        self.entry.insert(0, "COMMAND...")
+        self.entry.pack(fill="x", expand=True)
+        self.entry.insert("1.0", "COMMAND...")
+
+        self.file_icon = tk.Label(
+            self.entry_frame, text="📄", bg=CYBER_BLACK, fg=CYBER_YELLOW,
+            font=("Consolas", 12)
+        )
+        # Hidden initially
+
         self.entry.bind("<FocusIn>",   self._on_focus)
         self.entry.bind("<FocusOut>",  self._on_blur)
         self.entry.bind("<KeyRelease>", self._on_key)
         self.entry.bind("<Return>",    self._handle_submit)
         self.entry.bind("<Tab>",       self._use_sugg)
+        self.entry.bind("<Up>",        self._prev_cmd)
+        self.entry.bind("<Down>",      self._next_cmd)
 
         # Mic button  ──  keep name mic_btn so dashboard can bind to it
         self.mic_btn = tk.Label(
@@ -67,33 +83,83 @@ class CommandBar(tk.Frame):
     # ── Private ───────────────────────────────────────────────────────────────
 
     def _on_focus(self, e):
-        if self.entry.get() == "COMMAND...":
-            self.entry.delete(0, tk.END)
+        if self.entry.get("1.0", "end-1c") == "COMMAND...":
+            self.entry.delete("1.0", tk.END)
             self.entry.config(fg=CYBER_YELLOW)
 
     def _on_blur(self, e):
-        if not self.entry.get().strip():
-            self.entry.delete(0, tk.END)
-            self.entry.insert(0, "COMMAND...")
-            self.entry.config(fg="#555500")
+        content = self.entry.get("1.0", "end-1c").strip()
+        if not content:
+            self.entry.delete("1.0", tk.END)
+            self.entry.insert("1.0", "COMMAND...")
+            self.entry.config(fg="#555500", height=1)
+            self.file_icon.pack_forget()
+            self.entry.pack(fill="x", expand=True)
 
     def _on_key(self, e):
-        text = self.entry.get()
-        if text.strip():
-            self._suggestion = text.upper() + " SYNC"
+        content = self.entry.get("1.0", "end-1c")
+        words = content.split()
+
+        # 1. Handle dynamic height
+        num_lines = int(self.entry.index('end-1c').split('.')[0])
+        new_height = min(max(num_lines, 1), 5)
+        self.entry.config(height=new_height)
+
+        # 2. Handle large input (> 100 words)
+        if len(words) > 100:
+            if not self.file_icon.winfo_ismapped():
+                self.entry.pack_forget()
+                self.file_icon.pack(side="left", padx=5)
+        else:
+            if self.file_icon.winfo_ismapped():
+                self.file_icon.pack_forget()
+                self.entry.pack(fill="x", expand=True)
+
+        if content.strip():
+            self._suggestion = content.upper().split('\n')[0] + " SYNC"
         else:
             self._suggestion = ""
 
     def _use_sugg(self, e):
         if self._suggestion:
-            self.entry.delete(0, tk.END)
-            self.entry.insert(0, self._suggestion)
+            self.entry.delete("1.0", tk.END)
+            self.entry.insert("1.0", self._suggestion)
+        return "break"
+
+    def _prev_cmd(self, e):
+        if not self._history: return "break"
+        self._history_idx = min(self._history_idx + 1, len(self._history) - 1)
+        self.entry.delete("1.0", tk.END)
+        self.entry.insert("1.0", self._history[self._history_idx])
+        self.entry.config(fg=CYBER_YELLOW)
+        return "break"
+
+    def _next_cmd(self, e):
+        self._history_idx -= 1
+        self.entry.delete("1.0", tk.END)
+        if self._history_idx >= 0:
+            self.entry.insert("1.0", self._history[self._history_idx])
+            self.entry.config(fg=CYBER_YELLOW)
+        else:
+            self._history_idx = -1
+            self._on_blur(None)
         return "break"
 
     def _handle_submit(self, e):
-        cmd = self.entry.get()
+        # Shift+Enter for new line, Enter for submit
+        if e.state & 0x0001: # Shift key
+            return
+
+        cmd = self.entry.get("1.0", "end-1c").strip()
         if cmd and cmd != "COMMAND..." and self.on_submit:
+            # Add to history if not same as last
+            if not self._history or cmd != self._history[0]:
+                self._history.insert(0, cmd)
+                if len(self._history) > 20: self._history.pop()
+            self._history_idx = -1
             self.on_submit(cmd)
-        self.entry.delete(0, tk.END)
+
+        self.entry.delete("1.0", tk.END)
         self._on_blur(None)
         self._suggestion = ""
+        return "break" # Prevent newline from Enter

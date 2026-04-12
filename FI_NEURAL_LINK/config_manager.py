@@ -30,4 +30,6 @@ def load_config() -> dict:
 def get_model(key: str) -> str:
     """Returns the model name for a specific component."""
     config = load_config()
-    return config.get("models", {}).get(key, "gemini-1.5-flash")
+    # Default to pro for executor/navigator if not found
+    default = "gemini-1.5-pro" if key in ["executor", "web_navigator"] else "gemini-2.5-flash-lite"
+    return config.get("models", {}).get(key, default)

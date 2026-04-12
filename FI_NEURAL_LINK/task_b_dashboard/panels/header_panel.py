@@ -37,13 +37,14 @@ class HeaderPanel(tk.Frame):
 
         self.metric_label = tk.Label(
             self.status_row,
-            text="98.2",
+            text="00.0",
             bg=CYBER_BLACK,
             fg=CYBER_WHITE,
             font=("Consolas", 14, "bold"),
             anchor="e"
         )
         self.metric_label.pack(side="right")
+        self._update_metric()
 
         # ── Single row: FI INITIALIZED. on left │ — ✕ on right ───────────────
         self.ctrl_row = tk.Frame(self, bg=CYBER_BLACK)
@@ -75,7 +76,9 @@ class HeaderPanel(tk.Frame):
 
     def update_progress(self, percent: float):
         """Updates the 1px white progress bar (0 to 100)."""
-        w = self.winfo_width()
+        w = self.progress_canvas.winfo_width()
+        if w <= 1: # Widget might not be fully rendered yet
+            w = 288 # Use fixed dashboard width as fallback
         x1 = (percent / 100.0) * w
         self.progress_canvas.coords(self.progress_bar, 0, 0, x1, 1)
 
@@ -88,6 +91,16 @@ class HeaderPanel(tk.Frame):
         self._remaining = duration_seconds
         self.set_doing("ACTIVE")
         self._tick()
+
+    def _update_metric(self):
+        """Updates the system metric (e.g. CPU usage) to make the HUD feel alive."""
+        try:
+            import psutil
+            cpu = psutil.cpu_percent()
+            self.metric_label.config(text=f"{cpu:04.1f}")
+        except:
+            pass
+        self.after(2000, self._update_metric)
 
     def _tick(self):
         if self._remaining > 0:
