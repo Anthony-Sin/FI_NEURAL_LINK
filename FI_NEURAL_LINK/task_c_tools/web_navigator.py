@@ -4,6 +4,7 @@ import re
 from . import web_scraper
 from .pywinauto_wrapper import windows_control
 from ..task_a_agent_brain.llm_client import gemini_client
+from ..task_a_agent_brain.llm_client.json_parser import parse_llm_json
 from FI_NEURAL_LINK.config_manager import get_model
 from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
 
@@ -50,22 +51,44 @@ def smart_web_action(url_domain: str, instruction: str, expected_title_re: str =
 
         # 3. Filter and analyze
         elements = obs_res.get("elements", [])
-        filtered = []
+
+        # Prioritize relevant elements to keep within token limits but capture what's important
+        priority_elements = []
+        other_elements = []
+
+        keywords = instruction.lower().split()
+
         for el in elements:
-            filtered.append({
+            text = (el.get("title") or el.get("name") or "").lower()
+            e_type = el["type"].lower()
+
+            entry = {
                 "type": el["type"],
                 "text": el.get("title") or el.get("name"),
-                "auto_id": el.get("auto_id")
-            })
+                "auto_id": el.get("auto_id"),
+                "class": el.get("class")
+            }
+
+            # High priority: matches instruction keywords or is a common interactive type
+            if any(k in text for k in keywords) or e_type in ["edit", "button", "combobox"]:
+                priority_elements.append(entry)
+            else:
+                other_elements.append(entry)
+
+        # Build compact structure with a preference for prioritized elements
+        final_elements = (priority_elements + other_elements)[:150]
 
         compact_structure = {
             "title": current_title,
-            "elements": filtered[:100] # Cap to prevent token bloat
+            "elements": final_elements
         }
 
         system_prompt = (
             "You are a web element locator. Given a JSON representation of a LIVE browser window "
             "and an instruction, identify the best matching element and the action to perform.\n\n"
+            "STRICT ATOMIC RULE: You MUST perform exactly ONE interaction (click or type) per response. "
+            "If the instruction implies multiple steps (e.g. 'type X and click Y'), ONLY pick the FIRST step. "
+            "The system will re-scrape for the subsequent steps.\n\n"
             "Return ONLY a JSON object:\n"
             "{\n"
             "  \"action\": \"click_element\" or \"type_in_element\",\n"
@@ -79,11 +102,7 @@ def smart_web_action(url_domain: str, instruction: str, expected_title_re: str =
 
         try:
             response = gemini_client.generate_response(system_prompt, user_msg, model_name=get_model("web_navigator"))
-            clean_response = response.strip()
-            if clean_response.startswith("```json"): clean_response = clean_response[7:].strip()
-            if clean_response.endswith("```"): clean_response = clean_response[:-3].strip()
-
-            decision = json.loads(clean_response)
+            decision = parse_llm_json(response)
 
             # 4. Execute
             action = decision.get("action")

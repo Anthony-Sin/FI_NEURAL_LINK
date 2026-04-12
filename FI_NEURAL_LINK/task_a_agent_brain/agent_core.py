@@ -10,6 +10,7 @@ import logging
 from difflib import get_close_matches
 from .goal_decomposer.goal_decomposer import route_goal, parse_decision
 from .llm_client.gemini_client import generate_response
+from .llm_client.json_parser import parse_llm_json
 from .loop_guard import LoopGuard
 from FI_NEURAL_LINK.config_manager import get_model
 from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
@@ -239,7 +240,7 @@ def resolve_app_path(name: str) -> str | None:
         exe = name if name.lower().endswith(".exe") else name + ".exe"
 
     # Check if it is a URI scheme from aliases
-    if ":" in exe and not os.path.isabs(exe):
+    if ":" in exe and not os.path.isabs(exe) and not exe.startswith((".", "\\", "/")):
         return exe
 
     # 4. PATH lookup
@@ -444,7 +445,7 @@ class AgentCore:
 
                 # Loop detection
                 if self.loop_guard.check_loop(action_desc):
-                    self.log(f"Loop detected: {action_desc}", "error")
+                    self.log(f"CRITICAL: Infinite loop detected during action: {action_desc}. Halting execution for safety.", "error")
                     raise RuntimeError(f"Infinite loop detected: {action_desc}")
                 self.loop_guard.record_action(action_desc)
 
@@ -476,6 +477,10 @@ class AgentCore:
 
     def _call_executor(self, continuation: dict) -> dict:
         """Calls the stronger Gemini Pro model with strict observation cost hierarchy."""
+        return parse_llm_json(self._raw_call_executor(continuation))
+
+    def _raw_call_executor(self, continuation: dict) -> str:
+        """Calls the stronger Gemini Pro model and returns the raw response string."""
         is_resume = continuation.get("status") == "resuming"
 
         # Baked-in observation cost hierarchy
@@ -534,11 +539,5 @@ class AgentCore:
             })
 
         response = generate_response(system_prompt, user_message, model_name=get_model("executor"))
-
-        clean_response = response.strip()
-        if clean_response.startswith("```json"): clean_response = clean_response[7:].strip()
-        if clean_response.endswith("```"): clean_response = clean_response[:-3].strip()
-
-        self.log(f"RAW EXECUTOR RESPONSE: {clean_response}", "debug")
-
-        return json.loads(clean_response)
+        self.log(f"RAW EXECUTOR RESPONSE: {response}", "debug")
+        return response

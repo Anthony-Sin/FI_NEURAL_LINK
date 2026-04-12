@@ -10,8 +10,11 @@ If the global STOP_EVENT from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel 
 all operations will be halted and return an error status.
 """
 
+import re
+import time
 from typing import Dict, Union
 from pywinauto import Desktop
+import pyautogui
 from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
 
 def find_window(title_regex: str) -> Dict[str, Union[bool, str]]:
@@ -31,9 +34,9 @@ def find_window(title_regex: str) -> Dict[str, Union[bool, str]]:
         return {"ok": False, "result": str(e)}
 
 def _find_element(win, identifier: str, control_types: list = None):
-    """Internal helper to find an element by multiple strategies."""
+    """Internal helper to find an element by multiple strategies. Returns a resolved wrapper."""
     if control_types is None:
-        control_types = ["Button", "Edit", "Text", "ListItem", "MenuItem", "Hyperlink", "Document"]
+        control_types = ["Button", "Edit", "Text", "ListItem", "MenuItem", "Hyperlink", "Document", "ComboBox"]
 
     # Use a very short timeout for iterative checks
     T = 0.1
@@ -43,31 +46,33 @@ def _find_element(win, identifier: str, control_types: list = None):
         try:
             # Try with type constraint first
             for c_type in control_types:
-                ctrl = win.child_window(**{attr: identifier, 'control_type': c_type})
-                if ctrl.exists(timeout=T):
-                    return ctrl
+                spec = win.child_window(**{attr: identifier, 'control_type': c_type})
+                if spec.exists(timeout=T):
+                    return spec.wait('exists', timeout=T)
             # Then without type constraint
-            ctrl = win.child_window(**{attr: identifier})
-            if ctrl.exists(timeout=T):
-                return ctrl
+            spec = win.child_window(**{attr: identifier})
+            if spec.exists(timeout=T):
+                return spec.wait('exists', timeout=T)
         except: continue
 
     # Strategy 3: Regex match on title/name
     try:
-        ctrl = win.child_window(title_re=f".*{identifier}.*")
-        if ctrl.exists(timeout=T): return ctrl
+        spec = win.child_window(title_re=f".*{re.escape(identifier)}.*")
+        if spec.exists(timeout=T): return spec.wait('exists', timeout=T)
     except: pass
 
     try:
-        ctrl = win.child_window(name_re=f".*{identifier}.*")
-        if ctrl.exists(timeout=T): return ctrl
+        spec = win.child_window(name_re=f".*{re.escape(identifier)}.*")
+        if spec.exists(timeout=T): return spec.wait('exists', timeout=T)
     except: pass
 
     # Strategy 4: Search in descendants (One pass, in-memory filtering)
     try:
         for child in win.descendants():
             info = child.element_info
-            if identifier in [child.window_text(), info.name, info.automation_id]:
+            # Check for partial or exact match in multiple fields
+            fields = [child.window_text(), info.name, info.automation_id, info.class_name]
+            if any(identifier == f or (f and identifier in f) for f in fields):
                 if control_types and info.control_type not in control_types:
                     continue
                 return child
@@ -75,14 +80,21 @@ def _find_element(win, identifier: str, control_types: list = None):
 
     return None
 
+def _resolve_win(obj, name: str = "window"):
+    """Helper to resolve a Specification to a Wrapper if needed."""
+    if hasattr(obj, 'wait'):
+        return obj.wait('ready', timeout=10)
+    return obj
+
 def _get_window(window_title_re: str):
-    """Internal helper to find a window with fallbacks."""
-    import re
+    """Internal helper to find a window with fallbacks. Returns a WindowSpecification."""
     desktop = Desktop(backend="uia")
 
     # Strategy 1: Direct match (regex and literal)
     try:
-        win = desktop.window(title_re=window_title_re)
+        # Escape common title characters but allow .*
+        safe_title = window_title_re.replace("(", r"\(").replace(")", r"\)")
+        win = desktop.window(title_re=safe_title)
         if win.exists(timeout=2): return win
     except: pass
 
@@ -126,12 +138,11 @@ def click_element(window_title: str, control_title: str) -> Dict[str, Union[bool
         return {"ok": False, "result": "Halted by STOP_EVENT"}
     try:
         # Be loose with window matching
-        win_spec = _get_window(f".*{window_title}.*")
-        if not win_spec:
+        win_obj = _get_window(f".*{window_title}.*")
+        if not win_obj:
              return {"ok": False, "result": f"Could not find window matching '{window_title}'"}
 
-        # Resolve specification to actual wrapper to ensure properties are accessible
-        win = win_spec.wait('ready', timeout=10)
+        win = _resolve_win(win_obj)
         win.set_focus()
 
         ctrl = _find_element(win, control_title, ["Button", "Hyperlink", "Text", "MenuItem"])
@@ -150,19 +161,44 @@ def type_in_element(window_title: str, control_title: str, text: str) -> Dict[st
     if STOP_EVENT.is_set():
         return {"ok": False, "result": "Halted by STOP_EVENT"}
     try:
-        win_spec = _get_window(f".*{window_title}.*")
-        if not win_spec:
+        win_obj = _get_window(f".*{window_title}.*")
+        if not win_obj:
              return {"ok": False, "result": f"Could not find window matching '{window_title}'"}
 
-        win = win_spec.wait('ready', timeout=10)
+        win = _resolve_win(win_obj)
         win.set_focus()
 
-        ctrl = _find_element(win, control_title, ["Edit", "Document", "Text", "ComboBox"])
+        ctrl = _find_element(win, control_title, ["Edit", "Document", "Text", "ComboBox", "ListItem"])
         if ctrl:
-            # More robust typing: click, clear (ctrl+a, backspace), then type
+            # More robust typing: ensure focus, click, clear, then type with a small pause
+            ctrl.set_focus()
             ctrl.click_input()
-            ctrl.type_keys("^a{BACKSPACE}", with_spaces=True)
-            ctrl.type_keys(text, with_spaces=True)
+            time.sleep(1.0) # Longer wait for web apps to react to click
+
+            # Use multiple methods for maximum compatibility
+            try:
+                # 1. Clear field
+                ctrl.type_keys("^a{BACKSPACE}", with_spaces=True, pause=0.1)
+
+                # 2. Type text via pywinauto
+                ctrl.type_keys(text, with_spaces=True, pause=0.1)
+
+                # 3. Verification & PyAutoGUI fallback
+                time.sleep(0.5)
+                # Check if it worked (loose check as some inputs hide values)
+                val = str(ctrl.window_text())
+                if text not in val:
+                    # Fallback to direct hardware simulation
+                    pyautogui.write(text, interval=0.02)
+
+            except:
+                # Deep fallback
+                try: ctrl.set_edit_text(text)
+                except:
+                    # Last ditch effort: simple click and type
+                    ctrl.click_input()
+                    pyautogui.write(text, interval=0.02)
+
             return {"ok": True, "result": f"Typed '{text}' into '{control_title}'"}
 
         return {"ok": False, "result": f"Could not find input element '{control_title}'"}
@@ -190,11 +226,11 @@ def get_window_elements(window_title_re: str) -> dict:
     if STOP_EVENT.is_set():
         return {"ok": False, "result": "Halted by STOP_EVENT"}
     try:
-        win_spec = _get_window(window_title_re)
-        if not win_spec:
+        win_obj = _get_window(window_title_re)
+        if not win_obj:
              return {"ok": False, "result": f"Could not find window matching '{window_title_re}'"}
 
-        win = win_spec.wait('exists', timeout=5)
+        win = _resolve_win(win_obj)
 
         elements = []
         # We walk only top-level children and some common types to keep it small

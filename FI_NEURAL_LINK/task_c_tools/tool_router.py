@@ -6,11 +6,18 @@ It incorporates rate limiting and supports actions from mouse_keyboard, windows_
 from FI_NEURAL_LINK.task_c_tools.pyautogui_wrapper import mouse_keyboard
 from FI_NEURAL_LINK.task_c_tools.pywinauto_wrapper import windows_control
 from FI_NEURAL_LINK.task_c_tools import launcher, vision, web_scraper, web_navigator
-from FI_NEURAL_LINK.task_c_tools.safety.rate_limiter import DEFAULT_LIMITER
+from FI_NEURAL_LINK.task_c_tools.safety.rate_limiter import RateLimiter
 from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
+from FI_NEURAL_LINK.config_manager import load_config
 
 class ToolRouter:
     def __init__(self):
+        config = load_config().get("settings", {})
+        self.limiter = RateLimiter(
+            max_calls=config.get("rate_limit_calls", 30),
+            period_seconds=config.get("rate_limit_period", 10)
+        )
+
         # Action mapping
         self.actions = {
             "click": mouse_keyboard.click,
@@ -42,7 +49,7 @@ class ToolRouter:
         if STOP_EVENT.is_set():
             return {"ok": False, "result": "Halted by STOP_EVENT"}
 
-        if not DEFAULT_LIMITER.is_allowed():
+        if not self.limiter.is_allowed():
             return {"ok": False, "result": "Rate limit exceeded"}
 
         func = self.actions.get(action)
@@ -60,8 +67,10 @@ class ToolRouter:
             return {"ok": False, "result": f"Unknown action: {action}"}
 
         try:
-            DEFAULT_LIMITER.record_call()
+            self.limiter.record_call()
             # Unpack params as keyword arguments
             return func(**params)
+        except TypeError as te:
+            return {"ok": False, "result": f"Parameter mismatch for '{action}': {str(te)}"}
         except Exception as e:
-            return {"ok": False, "result": str(e)}
+            return {"ok": False, "result": f"Execution error in '{action}': {str(e)}"}

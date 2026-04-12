@@ -1,7 +1,7 @@
-import os
 import threading
 # Import order as per AGENTS.md: task_c_tools, then task_a, then task_b
 from FI_NEURAL_LINK.task_c_tools.tool_router import ToolRouter
+from FI_NEURAL_LINK.task_c_tools.safety.credential_manager import get_api_key
 from FI_NEURAL_LINK.task_a_agent_brain.agent_core import AgentCore
 from FI_NEURAL_LINK.task_b_dashboard.dashboard import Dashboard
 
@@ -13,8 +13,13 @@ def main():
     dashboard = Dashboard()
 
     # 3. Setup AgentCore Configuration
+    try:
+        api_key = get_api_key("GEMINI_API_KEY")
+    except EnvironmentError:
+        api_key = "MOCK_KEY"
+
     config = {
-        "gemini_api_key": os.environ.get("GEMINI_API_KEY", "MOCK_KEY"),
+        "gemini_api_key": api_key,
         "max_retries": 3,
         "loop_window": 5
     }

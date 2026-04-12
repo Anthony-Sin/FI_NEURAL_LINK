@@ -32,11 +32,17 @@ def open_url(url: str) -> dict:
         return {"ok": False, "result": str(e)}
 
 def wait(seconds: float) -> dict:
-    """Waits for the specified number of seconds."""
+    """Waits for the specified number of seconds, checking STOP_EVENT frequently."""
     if STOP_EVENT.is_set():
         return {"ok": False, "result": "Halted by STOP_EVENT"}
     try:
-        time.sleep(seconds)
+        start_time = time.time()
+        while time.time() - start_time < seconds:
+            if STOP_EVENT.is_set():
+                return {"ok": False, "result": "Halted by STOP_EVENT"}
+            # Sleep in small increments to remain responsive to stop event
+            time.sleep(min(0.5, seconds - (time.time() - start_time)))
+
         return {"ok": True, "result": f"Waited for {seconds} seconds"}
     except Exception as e:
         return {"ok": False, "result": str(e)}

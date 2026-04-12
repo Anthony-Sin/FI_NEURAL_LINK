@@ -8,8 +8,8 @@ def load_config() -> dict:
     config = {
         "models": {
             "router": "gemini-2.5-flash-lite",
-            "executor": "gemini-1.5-pro",
-            "web_navigator": "gemini-1.5-pro"
+            "executor": "gemini-2.5-flash-lite",
+            "web_navigator": "gemini-2.5-flash-lite"
         },
         "settings": {
             "save_dir": os.environ.get("WEB_VISITED_DIR", "web_visited")
@@ -30,4 +30,4 @@ def load_config() -> dict:
 def get_model(key: str) -> str:
     """Returns the model name for a specific component."""
     config = load_config()
-    return config.get("models", {}).get(key, "gemini-1.5-flash")
+    return config.get("models", {}).get(key, "gemini-2.5-flash-lite")
