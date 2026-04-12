@@ -6,7 +6,9 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Any, Tuple
 
 class CacheManager:
-    def __init__(self, cache_file: str = "command_cache.json"):
+    def __init__(self, cache_file: str = os.path.join("FI_NEURAL_LINK", "data", "command_cache.json")):
+        # Ensure data directory exists
+        os.makedirs(os.path.dirname(cache_file), exist_ok=True)
         self.cache_file = cache_file
         # key: pattern, value: {hits, last_used, compact_plan, variables}
         self.cache: Dict[str, Dict[str, Any]] = {}

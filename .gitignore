@@ -4,6 +4,9 @@ agent_execution.log
 # Web scraper data
 web_visited/
 
+# Agent Data & Cache
+FI_NEURAL_LINK/data/
+
 # Configuration
 config.json
 

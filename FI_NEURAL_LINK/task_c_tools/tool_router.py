@@ -5,7 +5,7 @@ It incorporates rate limiting and supports actions from mouse_keyboard, windows_
 
 from FI_NEURAL_LINK.task_c_tools.pyautogui_wrapper import mouse_keyboard
 from FI_NEURAL_LINK.task_c_tools.pywinauto_wrapper import windows_control
-from FI_NEURAL_LINK.task_c_tools import launcher, vision, web_scraper, web_navigator
+from FI_NEURAL_LINK.task_c_tools import launcher, vision, web_scraper, web_navigator, terminal
 from FI_NEURAL_LINK.task_c_tools.safety.rate_limiter import RateLimiter
 from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
 from FI_NEURAL_LINK.config_manager import load_config
@@ -39,7 +39,8 @@ class ToolRouter:
             "type_in_element": windows_control.type_in_element,
             "get_window_text": windows_control.get_window_text,
             "read_screen": vision.read_screen,
-            "analyze_screen": vision.analyze_screen
+            "analyze_screen": vision.analyze_screen,
+            "execute_command": terminal.execute_command
         }
 
     def execute(self, action: str, params: dict) -> dict:

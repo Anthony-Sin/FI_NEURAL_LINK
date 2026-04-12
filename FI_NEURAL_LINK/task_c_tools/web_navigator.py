@@ -33,6 +33,15 @@ def smart_web_action(url_domain: str, instruction: str, expected_title_re: str =
         # which now has fallbacks in windows_control._get_window
         obs_res = web_scraper.extract_structure_from_window(search_title)
 
+        # Update web_visited folder during interactive sessions
+        if obs_res.get("ok"):
+            try:
+                # We reuse the filename convention or create one from domain
+                clean_domain = url_domain.replace(".", "_")
+                web_scraper.save_webpage_structure(url=f"uia_capture://{url_domain}", filename=f"live_{clean_domain}.json")
+            except:
+                pass # Non-critical if background save fails
+
         if not obs_res.get("ok"):
             logger.warning(f"Window not found or structured failed: {obs_res.get('result')}. Waiting 3s...")
             time.sleep(3)

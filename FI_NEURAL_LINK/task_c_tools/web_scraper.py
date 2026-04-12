@@ -25,7 +25,16 @@ def save_webpage_structure(url: str, filename: str = "webpage_structure.json") -
         config = load_config()
         save_dir_name = config.get("settings", {}).get("save_dir", "web_visited")
 
-        response = requests.get(url, timeout=10)
+        # Check if this is a UIA capture request from smart_web_action
+        if url.startswith("uia_capture://"):
+            domain = url.replace("uia_capture://", "")
+            obs_res = extract_structure_from_window(f".*{domain}.*")
+            if obs_res.get("ok"):
+                structure = obs_res
+            else:
+                return obs_res
+        else:
+            response = requests.get(url, timeout=10)
         response.raise_for_status()
 
         soup = BeautifulSoup(response.text, 'html.parser')
