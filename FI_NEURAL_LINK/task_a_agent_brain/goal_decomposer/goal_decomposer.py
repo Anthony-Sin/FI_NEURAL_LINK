@@ -3,11 +3,13 @@ from ..llm_client.gemini_client import generate_response
 from ..llm_client.json_parser import parse_llm_json
 from FI_NEURAL_LINK.config_manager import get_model
 
-def route_goal(goal: str) -> str:
+def route_goal(goal: str, cache_block: str = "") -> str:
     """
     Acts as a Router Brain using Gemini Flash Lite.
     Classifies the goal as 'short' or 'long' and dispatches accordingly.
     """
+    cache_instr = f"\n\n{cache_block}\nUse the CACHE if it matches the current goal exactly." if cache_block else ""
+
     system_prompt = (
         "You are a pure intent classifier and dispatcher. Your job is to determine "
         "if a user goal is 'short' (completable in ONE tool call) or 'long' "
@@ -52,6 +54,7 @@ def route_goal(goal: str) -> str:
         "}\n"
         "Forbidden from beginning execution or reasoning about steps. Only emit the handoff.\n\n"
         "Return ONLY the valid JSON object."
+        f"{cache_instr}"
     )
 
     response_text = generate_response(system_prompt, goal, model_name=get_model("router"))
