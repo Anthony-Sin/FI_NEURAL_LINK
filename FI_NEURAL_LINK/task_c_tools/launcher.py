@@ -46,6 +46,12 @@ def launch_app(path: str, args: list = []) -> dict:
         return {"ok": False, "result": "Halted by STOP_EVENT"}
 
     try:
+        # Check if it is a URI scheme (like ms-settings:)
+        if ":" in path and not os.path.isabs(path) and not path.startswith("."):
+            import os as os_mod
+            os_mod.startfile(path)
+            return {"ok": True, "result": f"Launched URI: {path}"}
+
         subprocess.Popen([path] + args)
         return {"ok": True, "result": f"Launched app: {path} with args {args}"}
     except Exception as e:

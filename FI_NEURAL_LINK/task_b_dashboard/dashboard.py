@@ -56,6 +56,13 @@ class Dashboard:
         if "STEP" in text.upper():
             self.header.set_doing(text)
 
+        # Auto-trigger timer from logs (e.g., "Waited for 5 seconds")
+        import re
+        match = re.search(r'(\d+(?:\.\d+)?)\s+seconds?', text, re.IGNORECASE)
+        if match and any(keyword in text.upper() for keyword in ["WAIT", "TIMER", "SLEEP"]):
+            seconds = int(float(match.group(1)))
+            self.header.start_timer(seconds)
+
     def set_on_submit(self, callback):
         def wrapped(text):
             self.middle.set_last_prompt(text)

@@ -35,43 +35,40 @@ def _find_element(win, identifier: str, control_types: list = None):
     if control_types is None:
         control_types = ["Button", "Edit", "Text", "ListItem", "MenuItem", "Hyperlink", "Document"]
 
-    # Strategy 1: exact title/name/auto_id with type constraint
-    for c_type in control_types:
-        for attr in ['title', 'auto_id', 'control_id', 'best_match', 'name']:
-            try:
-                kwargs = {attr: identifier, 'control_type': c_type}
-                ctrl = win.child_window(**kwargs)
-                if ctrl.exists(timeout=1):
-                    return ctrl
-            except: continue
+    # Use a very short timeout for iterative checks
+    T = 0.1
 
-    # Strategy 2: exact identifier without type constraint
-    for attr in ['title', 'auto_id', 'control_id', 'best_match', 'name']:
+    # Strategy 1 & 2: exact title/name/auto_id (checking most likely first)
+    for attr in ['auto_id', 'name', 'title', 'control_id', 'best_match']:
         try:
-            kwargs = {attr: identifier}
-            ctrl = win.child_window(**kwargs)
-            if ctrl.exists(timeout=1):
+            # Try with type constraint first
+            for c_type in control_types:
+                ctrl = win.child_window(**{attr: identifier, 'control_type': c_type})
+                if ctrl.exists(timeout=T):
+                    return ctrl
+            # Then without type constraint
+            ctrl = win.child_window(**{attr: identifier})
+            if ctrl.exists(timeout=T):
                 return ctrl
         except: continue
 
     # Strategy 3: Regex match on title/name
     try:
         ctrl = win.child_window(title_re=f".*{identifier}.*")
-        if ctrl.exists(timeout=1):
-            return ctrl
+        if ctrl.exists(timeout=T): return ctrl
     except: pass
 
     try:
         ctrl = win.child_window(name_re=f".*{identifier}.*")
-        if ctrl.exists(timeout=1):
-            return ctrl
+        if ctrl.exists(timeout=T): return ctrl
     except: pass
 
-    # Strategy 4: Search in descendants (expensive but thorough)
+    # Strategy 4: Search in descendants (One pass, in-memory filtering)
     try:
         for child in win.descendants():
-            if identifier in [child.window_text(), child.element_info.name, child.element_info.automation_id]:
-                if control_types and child.element_info.control_type not in control_types:
+            info = child.element_info
+            if identifier in [child.window_text(), info.name, info.automation_id]:
+                if control_types and info.control_type not in control_types:
                     continue
                 return child
     except: pass
@@ -90,6 +87,7 @@ def _get_window(window_title_re: str):
     except: pass
 
     # Strategy 2: If it looks like a domain, try common browser suffixes
+    # Handle domain strings that might be padded with .* or not
     if "." in window_title_re:
         clean_domain = window_title_re.replace(".*", "")
         fallbacks = [
@@ -194,7 +192,7 @@ def get_window_elements(window_title_re: str) -> dict:
         # In a real app we might need deeper walking
         for child in win.descendants():
             c_type = child.element_info.control_type
-            if c_type in ["Button", "Edit", "Text", "Hyperlink", "ListItem", "MenuItem", "CheckBox"]:
+            if c_type in ["Button", "Edit", "Text", "Hyperlink", "ListItem", "MenuItem", "CheckBox", "Document", "ComboBox"]:
                 elements.append({
                     "type": c_type,
                     "title": child.window_text(),
