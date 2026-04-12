@@ -286,6 +286,7 @@ class AgentCore:
     """
 
     def __init__(self, config: dict, tool_router=None, log_callback=None):
+        self._is_busy = False
         """
         Initializes the AgentCore.
 
@@ -346,6 +347,11 @@ class AgentCore:
         """
         Routes a goal and executes it using the RouterBrain/ExecutorAgent architecture.
         """
+        if self._is_busy:
+            self.log("AGENT IS CURRENTLY BUSY. QUEUEING REJECTED.", "warning")
+            return []
+
+        self._is_busy = True
         self.log(f"Routing goal: {goal}")
         self.loop_guard.reset()
 
@@ -366,6 +372,13 @@ class AgentCore:
             return []
 
     def _execute_short_task(self, decision: dict) -> list:
+        """Executes a short task immediately via one or more function_calls."""
+        try:
+            return self._perform_short_task(decision)
+        finally:
+            self._is_busy = False
+
+    def _perform_short_task(self, decision: dict) -> list:
         """Executes a short task immediately via one or more function_calls."""
         text = decision.get("text", "Executing short task")
         self.log(f"Short Task: {text}")
@@ -472,6 +485,8 @@ class AgentCore:
             except Exception as e:
                 self.log(f"Executor loop error: {str(e)}", "error")
                 break
+        finally:
+            self._is_busy = False
 
         return results
 

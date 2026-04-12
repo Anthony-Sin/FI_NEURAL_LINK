@@ -18,6 +18,7 @@ def smart_web_action(url_domain: str, instruction: str, expected_title_re: str =
     logger = logging.getLogger("AgentCore")
 
     max_attempts = 5
+    last_error = ""
     for attempt in range(1, max_attempts + 1):
         if STOP_EVENT.is_set():
             return {"ok": False, "result": "Halted by STOP_EVENT"}
@@ -98,6 +99,9 @@ def smart_web_action(url_domain: str, instruction: str, expected_title_re: str =
         )
 
         user_msg = f"Structure: {json.dumps(compact_structure)}\nInstruction: {instruction}"
+        if last_error:
+            user_msg += f"\nNote from previous attempt: {last_error}"
+
         logger.debug(f"--- SMART WEB ACTION PROMPT ---\n{user_msg}\n-------------------------------")
 
         try:
@@ -113,14 +117,17 @@ def smart_web_action(url_domain: str, instruction: str, expected_title_re: str =
                 # Use current_title instead of search_title to be more specific once window is found
                 res = windows_control.click_element(current_title, ctrl_title)
             elif action == "type_in_element":
-                res = windows_control.type_in_element(current_title, ctrl_title, text)
+                # Detect if the instruction or context implies Enter
+                should_enter = any(k in instruction.lower() for k in ["enter", "return", "submit", "start"])
+                res = windows_control.type_in_element(current_title, ctrl_title, text, enter=should_enter)
             else:
                 return {"ok": False, "result": f"Unknown action: {action}"}
 
             if res.get("ok"):
                 return res
             else:
-                logger.warning(f"Action failed: {res.get('result')}. Retrying...")
+                last_error = res.get('result')
+                logger.warning(f"Action failed: {last_error}. Retrying...")
                 time.sleep(3)
 
         except Exception as e:

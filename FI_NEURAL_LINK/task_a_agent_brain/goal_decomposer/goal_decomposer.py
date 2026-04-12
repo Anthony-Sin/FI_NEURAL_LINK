@@ -30,6 +30,8 @@ def route_goal(goal: str) -> str:
         "CRITICAL: Always insert a dynamic 'wait' step after 'launch_app' or 'open_url' (estimate seconds based on likely load time) before any follow-up UI action.\n"
         "When launching a browser (msedge.exe or chrome.exe), ALWAYS include the \"--new-window\" flag in the 'args' list to ensure a clean workspace. If the user provides a URL, append it to the args list after the flag.\n"
         "When 'heading over' to a URL, you MUST always call 'save_webpage_structure' after opening it.\n"
+        "LOGIN AWARENESS: Many sites (Gmail, AI Studio) may already be logged in. "
+        "Before typing credentials, check if the page is already at the dashboard or inbox. If so, SKIP typing and proceed to the next relevant action.\n"
         "For complex tasks like 'type X into the search bar', ALWAYS prefer 'smart_web_action' which combines scraping and element discovery. "
         "Signature: smart_web_action(url_domain: str, instruction: str, expected_title_re: str).\n"
         "STRICT RULE: Each 'smart_web_action' must perform exactly ONE atomic UI interaction. "

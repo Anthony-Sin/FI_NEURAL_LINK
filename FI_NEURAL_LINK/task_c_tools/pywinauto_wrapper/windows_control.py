@@ -41,6 +41,13 @@ def _find_element(win, identifier: str, control_types: list = None):
     # Use a very short timeout for iterative checks
     T = 0.1
 
+    # Strategy 0: If it looks like an auto_id (starts with 'view_' or matches specific format)
+    if identifier.startswith("view_") or identifier == "RootWebArea":
+        try:
+            spec = win.child_window(auto_id=identifier)
+            if spec.exists(timeout=T): return spec.wait('exists', timeout=T)
+        except: pass
+
     # Strategy 1 & 2: exact title/name/auto_id (checking most likely first)
     for attr in ['auto_id', 'name', 'title', 'control_id', 'best_match']:
         try:
@@ -154,9 +161,10 @@ def click_element(window_title: str, control_title: str) -> Dict[str, Union[bool
     except Exception as e:
         return {"ok": False, "result": str(e)}
 
-def type_in_element(window_title: str, control_title: str, text: str) -> Dict[str, Union[bool, str]]:
+def type_in_element(window_title: str, control_title: str, text: str, enter: bool = False) -> Dict[str, Union[bool, str]]:
     """
     Find a window by title and type text into a control within it using multiple discovery strategies.
+    Supports pressing enter after typing.
     """
     if STOP_EVENT.is_set():
         return {"ok": False, "result": "Halted by STOP_EVENT"}
@@ -191,6 +199,9 @@ def type_in_element(window_title: str, control_title: str, text: str) -> Dict[st
                     # Fallback to direct hardware simulation
                     pyautogui.write(text, interval=0.02)
 
+                if enter:
+                    ctrl.type_keys("{ENTER}")
+
             except:
                 # Deep fallback
                 try: ctrl.set_edit_text(text)
@@ -199,7 +210,10 @@ def type_in_element(window_title: str, control_title: str, text: str) -> Dict[st
                     ctrl.click_input()
                     pyautogui.write(text, interval=0.02)
 
-            return {"ok": True, "result": f"Typed '{text}' into '{control_title}'"}
+                if enter:
+                    pyautogui.press("enter")
+
+            return {"ok": True, "result": f"Typed '{text}' into '{control_title}'" + (" and pressed Enter" if enter else "")}
 
         return {"ok": False, "result": f"Could not find input element '{control_title}'"}
     except Exception as e:
@@ -222,6 +236,7 @@ def get_window_text(window_title: str) -> Dict[str, Union[bool, str]]:
 def get_window_elements(window_title_re: str) -> dict:
     """
     Walks the UI tree of a window and extracts interactive elements.
+    Includes a readiness check for web documents.
     """
     if STOP_EVENT.is_set():
         return {"ok": False, "result": "Halted by STOP_EVENT"}
@@ -231,6 +246,13 @@ def get_window_elements(window_title_re: str) -> dict:
              return {"ok": False, "result": f"Could not find window matching '{window_title_re}'"}
 
         win = _resolve_win(win_obj)
+
+        # Readiness check: wait for web document area to appear if it's a browser
+        if any(b in str(win.window_text()) for b in ["Edge", "Chrome", "Firefox"]):
+            try:
+                # RootWebArea is common for Chrome/Edge documents
+                win.child_window(control_type="Document").wait('exists', timeout=5)
+            except: pass # Continue anyway if it doesn't appear
 
         elements = []
         # We walk only top-level children and some common types to keep it small
