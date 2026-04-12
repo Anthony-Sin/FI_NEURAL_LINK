@@ -1,5 +1,5 @@
 import tkinter as tk
-from FI_NEURAL_LINK.task_b_dashboard.dashboard import Dashboard
+from FI_NEURAL_LINK.ui.main_window import Dashboard
 import time
 from PIL import ImageGrab
 import os

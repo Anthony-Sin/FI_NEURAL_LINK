@@ -1,9 +1,9 @@
 import threading
-# Import order as per AGENTS.md: task_c_tools, then task_a, then task_b
-from FI_NEURAL_LINK.task_c_tools.tool_router import ToolRouter
-from FI_NEURAL_LINK.task_c_tools.safety.credential_manager import get_api_key
-from FI_NEURAL_LINK.task_a_agent_brain.agent_core import AgentCore
-from FI_NEURAL_LINK.task_b_dashboard.dashboard import Dashboard
+# Updated imports for modular structure
+from FI_NEURAL_LINK.tools.router import ToolRouter
+from FI_NEURAL_LINK.tools.security.credentials import get_api_key
+from FI_NEURAL_LINK.brain.agent import AgentCore
+from FI_NEURAL_LINK.ui.main_window import Dashboard
 
 def main():
     # 1. Initialize ToolRouter
