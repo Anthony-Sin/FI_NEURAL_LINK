@@ -3,11 +3,13 @@ from ..llm_client.gemini_client import generate_response
 from ..llm_client.json_parser import parse_llm_json
 from FI_NEURAL_LINK.config_manager import get_model
 
-def route_goal(goal: str) -> str:
+def route_goal(goal: str, cache_block: str = "") -> str:
     """
     Acts as a Router Brain using Gemini Flash Lite.
     Classifies the goal as 'short' or 'long' and dispatches accordingly.
     """
+    cache_instr = f"\n\n{cache_block}\nUse the CACHE if it matches the current goal exactly." if cache_block else ""
+
     system_prompt = (
         "You are a pure intent classifier and dispatcher. Your job is to determine "
         "if a user goal is 'short' (completable in ONE tool call) or 'long' "
@@ -30,6 +32,8 @@ def route_goal(goal: str) -> str:
         "CRITICAL: Always insert a dynamic 'wait' step after 'launch_app' or 'open_url' (estimate seconds based on likely load time) before any follow-up UI action.\n"
         "When launching a browser (msedge.exe or chrome.exe), ALWAYS include the \"--new-window\" flag in the 'args' list to ensure a clean workspace. If the user provides a URL, append it to the args list after the flag.\n"
         "When 'heading over' to a URL, you MUST always call 'save_webpage_structure' after opening it.\n"
+        "LOGIN AWARENESS: Many sites (Gmail, AI Studio) may already be logged in. "
+        "Before typing credentials, check if the page is already at the dashboard or inbox. If so, SKIP typing and proceed to the next relevant action.\n"
         "For complex tasks like 'type X into the search bar', ALWAYS prefer 'smart_web_action' which combines scraping and element discovery. "
         "Signature: smart_web_action(url_domain: str, instruction: str, expected_title_re: str).\n"
         "STRICT RULE: Each 'smart_web_action' must perform exactly ONE atomic UI interaction. "
@@ -50,6 +54,7 @@ def route_goal(goal: str) -> str:
         "}\n"
         "Forbidden from beginning execution or reasoning about steps. Only emit the handoff.\n\n"
         "Return ONLY the valid JSON object."
+        f"{cache_instr}"
     )
 
     response_text = generate_response(system_prompt, goal, model_name=get_model("router"))

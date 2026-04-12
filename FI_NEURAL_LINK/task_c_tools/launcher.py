@@ -55,8 +55,12 @@ def launch_app(path: str, args: list = []) -> dict:
     try:
         # Check if it is a URI scheme (like ms-settings:)
         if ":" in path and not os.path.isabs(path) and not path.startswith("."):
-            os.startfile(path)
-            return {"ok": True, "result": f"Launched URI: {path}"}
+            if hasattr(os, 'startfile'):
+                os.startfile(path)
+                return {"ok": True, "result": f"Launched URI: {path}"}
+            else:
+                # Fallback or pass for non-Windows (mostly for tests)
+                return {"ok": False, "result": "URI schemes only supported on Windows"}
 
         subprocess.Popen([path] + args)
         return {"ok": True, "result": f"Launched app: {path} with args {args}"}

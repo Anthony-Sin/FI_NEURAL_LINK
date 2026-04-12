@@ -12,6 +12,7 @@ from .goal_decomposer.goal_decomposer import route_goal, parse_decision
 from .llm_client.gemini_client import generate_response
 from .llm_client.json_parser import parse_llm_json
 from .loop_guard import LoopGuard
+from .cache_manager import CacheManager
 from FI_NEURAL_LINK.config_manager import get_model
 from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
 
@@ -286,20 +287,15 @@ class AgentCore:
     """
 
     def __init__(self, config: dict, tool_router=None, log_callback=None):
+        self._is_busy = False
         """
         Initializes the AgentCore.
-
-        Args:
-            config (dict): Configuration containing:
-                - gemini_api_key (str): The API key for Gemini.
-                - max_retries (int): Maximum number of retries for actions.
-                - loop_window (int): The window size for loop detection.
-            tool_router (ToolRouter, optional): The tool router to execute actions.
-            log_callback (callable, optional): A callback function for logging.
         """
         self.config = config
         os.environ["GEMINI_API_KEY"] = config.get("gemini_api_key", "")
         self.loop_guard = LoopGuard(n=config.get("loop_window", 5))
+        self.cache_mgr = CacheManager()
+        self.cache_mgr.load_cache()
         self.tool_router = tool_router
         self._setup_logging(log_callback)
 
@@ -346,11 +342,36 @@ class AgentCore:
         """
         Routes a goal and executes it using the RouterBrain/ExecutorAgent architecture.
         """
+        if self._is_busy:
+            self.log("AGENT IS CURRENTLY BUSY. QUEUEING REJECTED.", "warning")
+            return []
+
+        self._is_busy = True
+        try:
+            return self._perform_goal(goal)
+        finally:
+            self._is_busy = False
+
+    def _perform_goal(self, goal: str) -> list:
         self.log(f"Routing goal: {goal}")
         self.loop_guard.reset()
 
+        # 1. Check cache first
         try:
-            raw_decision = route_goal(goal)
+            cached_plan = self.cache_mgr.match_and_reconstruct(goal)
+            if cached_plan:
+                self.log("CACHE HIT! Executing macro plan...", "success")
+                # Convert to 'short task' format for _execute_short_task
+                decision = {"text": "Executing cached plan", "function_calls": cached_plan}
+                results = self._perform_short_task(decision)
+                self.cache_mgr.save_cache() # Persist hits
+                return results
+        except Exception as e:
+            self.log(f"Cache matching error: {str(e)}", "warning")
+
+        try:
+            cache_block = self.cache_mgr.get_cache_block()
+            raw_decision = route_goal(goal, cache_block=cache_block)
             self.log(f"RAW ROUTER RESPONSE: {raw_decision}", "debug")
             decision = parse_decision(raw_decision)
         except Exception as e:
@@ -358,14 +379,32 @@ class AgentCore:
             return []
 
         if "function_call" in decision or "function_calls" in decision:
-            return self._execute_short_task(decision)
+            results = self._perform_short_task(decision)
+            # Record success for cache
+            if results and all(r["status"] == "completed" for r in results):
+                f_calls = decision.get("function_calls") or [decision.get("function_call")]
+                f_calls = [f for f in f_calls if f]
+                if f_calls:
+                    self.cache_mgr.record_success(goal, f_calls)
+                    self.cache_mgr.save_cache()
+            return results
         elif decision.get("task_type") == "long":
-            return self._execute_long_task(decision)
+            # Hand off to long task without nesting another busy check
+            return self._perform_long_task(decision)
         else:
             self.log(f"Unknown decision format: {json.dumps(decision)}", "error")
             return []
 
     def _execute_short_task(self, decision: dict) -> list:
+        """Public wrapper for short task execution."""
+        if self._is_busy: return []
+        self._is_busy = True
+        try:
+            return self._perform_short_task(decision)
+        finally:
+            self._is_busy = False
+
+    def _perform_short_task(self, decision: dict) -> list:
         """Executes a short task immediately via one or more function_calls."""
         text = decision.get("text", "Executing short task")
         self.log(f"Short Task: {text}")
@@ -401,6 +440,15 @@ class AgentCore:
         return results
 
     def _execute_long_task(self, handoff: dict) -> list:
+        """Public wrapper for long task execution."""
+        if self._is_busy: return []
+        self._is_busy = True
+        try:
+            return self._perform_long_task(handoff)
+        finally:
+            self._is_busy = False
+
+    def _perform_long_task(self, handoff: dict) -> list:
         """Executes a long task using the strict iterative ExecutorAgent loop."""
         self.log(f"Long Task detected. Handing off to Executor loop.")
 
@@ -415,8 +463,8 @@ class AgentCore:
         }
 
         results = []
-        while not STOP_EVENT.is_set():
-            try:
+        try:
+            while not STOP_EVENT.is_set():
                 # 1. GENERATE NEXT STEP (Act)
                 executor_output = self._call_executor(continuation)
 
@@ -468,19 +516,17 @@ class AgentCore:
                     results.append({"description": action_desc, "status": "completed" if tool_result.get("ok") else "failed"})
                 else:
                     break
-
-            except Exception as e:
-                self.log(f"Executor loop error: {str(e)}", "error")
-                break
+        except Exception as e:
+            self.log(f"Executor loop error: {str(e)}", "error")
 
         return results
 
     def _call_executor(self, continuation: dict) -> dict:
-        """Calls the stronger Gemini Pro model with strict observation cost hierarchy."""
+        """Calls the Gemini model with strict observation cost hierarchy."""
         return parse_llm_json(self._raw_call_executor(continuation))
 
     def _raw_call_executor(self, continuation: dict) -> str:
-        """Calls the stronger Gemini Pro model and returns the raw response string."""
+        """Calls the Gemini model and returns the raw response string."""
         is_resume = continuation.get("status") == "resuming"
 
         # Baked-in observation cost hierarchy
