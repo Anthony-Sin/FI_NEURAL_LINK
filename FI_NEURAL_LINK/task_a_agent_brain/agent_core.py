@@ -347,6 +347,12 @@ class AgentCore:
             return []
 
         self._is_busy = True
+        try:
+            return self._perform_goal(goal)
+        finally:
+            self._is_busy = False
+
+    def _perform_goal(self, goal: str) -> list:
         self.log(f"Routing goal: {goal}")
         self.loop_guard.reset()
 
@@ -357,7 +363,7 @@ class AgentCore:
                 self.log("CACHE HIT! Executing macro plan...", "success")
                 # Convert to 'short task' format for _execute_short_task
                 decision = {"text": "Executing cached plan", "function_calls": cached_plan}
-                results = self._execute_short_task(decision)
+                results = self._perform_short_task(decision)
                 self.cache_mgr.save_cache() # Persist hits
                 return results
         except Exception as e:
@@ -373,20 +379,26 @@ class AgentCore:
             return []
 
         if "function_call" in decision or "function_calls" in decision:
-            results = self._execute_short_task(decision)
+            results = self._perform_short_task(decision)
             # Record success for cache
             if results and all(r["status"] == "completed" for r in results):
-                self.cache_mgr.record_success(goal, decision.get("function_calls", [decision.get("function_call")]))
-                self.cache_mgr.save_cache()
+                f_calls = decision.get("function_calls") or [decision.get("function_call")]
+                f_calls = [f for f in f_calls if f]
+                if f_calls:
+                    self.cache_mgr.record_success(goal, f_calls)
+                    self.cache_mgr.save_cache()
             return results
         elif decision.get("task_type") == "long":
-            return self._execute_long_task(decision)
+            # Hand off to long task without nesting another busy check
+            return self._perform_long_task(decision)
         else:
             self.log(f"Unknown decision format: {json.dumps(decision)}", "error")
             return []
 
     def _execute_short_task(self, decision: dict) -> list:
-        """Executes a short task immediately via one or more function_calls."""
+        """Public wrapper for short task execution."""
+        if self._is_busy: return []
+        self._is_busy = True
         try:
             return self._perform_short_task(decision)
         finally:
@@ -428,6 +440,15 @@ class AgentCore:
         return results
 
     def _execute_long_task(self, handoff: dict) -> list:
+        """Public wrapper for long task execution."""
+        if self._is_busy: return []
+        self._is_busy = True
+        try:
+            return self._perform_long_task(handoff)
+        finally:
+            self._is_busy = False
+
+    def _perform_long_task(self, handoff: dict) -> list:
         """Executes a long task using the strict iterative ExecutorAgent loop."""
         self.log(f"Long Task detected. Handing off to Executor loop.")
 
@@ -497,8 +518,6 @@ class AgentCore:
                     break
         except Exception as e:
             self.log(f"Executor loop error: {str(e)}", "error")
-        finally:
-            self._is_busy = False
 
         return results
 

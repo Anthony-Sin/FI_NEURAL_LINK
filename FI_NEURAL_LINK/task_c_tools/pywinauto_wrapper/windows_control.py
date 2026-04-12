@@ -107,9 +107,9 @@ def _get_window(window_title_re: str):
 
     try:
         # Literal match (handles parentheses etc in titles)
-        clean_title = window_title_re.strip(".*")
+        clean_title = window_title_re.replace(".*", "")
         for w in desktop.windows():
-            if clean_title in w.window_text():
+            if clean_title and clean_title in w.window_text():
                 return desktop.window(handle=w.handle)
     except: pass
 

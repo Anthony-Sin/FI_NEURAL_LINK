@@ -144,29 +144,36 @@ class CacheManager:
         temp_goal = norm_goal
 
         # Simple heuristic: look for strings longer than 3 chars in args that are in goal
+        # Sort candidates by length to avoid partial matches
+        candidates = []
         for call in function_calls:
             for arg_name, arg_val in call.get("args", {}).items():
-                vals_to_check = arg_val if isinstance(arg_val, list) else [arg_val]
-                for v in vals_to_check:
+                vals = arg_val if isinstance(arg_val, list) else [arg_val]
+                for v in vals:
                     s_v = str(v)
                     if len(s_v) > 3 and s_v in temp_goal:
-                        # Found a candidate for a variable
-                        if s_v not in variables.values():
-                            # Map descriptive names if possible
-                            var_name = arg_name
-                            if arg_name == "args": var_name = "url"
-                            if arg_name == "text": var_name = "q"
+                        candidates.append((s_v, arg_name))
 
-                            # Ensure uniqueness
-                            orig_var_name = var_name
-                            counter = 1
-                            while var_name in variables:
-                                var_name = f"{orig_var_name}{counter}"
-                                counter += 1
+        candidates.sort(key=lambda x: len(x[0]), reverse=True)
 
-                            variables[var_name] = s_v
-                            # Replace in pattern with *
-                            temp_goal = temp_goal.replace(s_v, "*")
+        for s_v, arg_name in candidates:
+            # Important: Replace occurrences one-by-one to keep vars synced with *
+            while s_v in temp_goal:
+                # Map descriptive names if possible
+                var_base = arg_name
+                if arg_name == "args": var_base = "url"
+                if arg_name == "text": var_base = "q"
+
+                # Ensure uniqueness
+                var_name = var_base
+                counter = 1
+                while var_name in variables:
+                    var_name = f"{var_base}{counter}"
+                    counter += 1
+
+                variables[var_name] = s_v
+                # Replace only FIRST occurrence with *
+                temp_goal = temp_goal.replace(s_v, "*", 1)
 
         pattern = temp_goal
         compact_plan = [self._serialize_call(c, variables) for c in function_calls]
