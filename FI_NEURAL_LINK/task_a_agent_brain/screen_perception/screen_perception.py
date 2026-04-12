@@ -7,14 +7,14 @@ from ..llm_client.gemini_client import generate_response
 
 def capture_screen() -> Image.Image:
     """
-    Captures a screenshot of the full screen and returns it as a PIL Image.
+    Captures a screenshot of the full virtual screen and returns it as a PIL Image.
 
     Returns:
         Image.Image: The captured screenshot.
     """
     with mss.mss() as sct:
-        # Capture the primary monitor
-        monitor = sct.monitors[1]
+        # Capture the entire virtual screen (monitor 0)
+        monitor = sct.monitors[0]
         screenshot = sct.grab(monitor)
         # Convert to PIL Image
         return Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")

@@ -10,6 +10,7 @@ If the global STOP_EVENT from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel 
 all operations will be halted and return an error status.
 """
 
+import os
 import subprocess
 import webbrowser
 import psutil
@@ -48,8 +49,7 @@ def launch_app(path: str, args: list = []) -> dict:
     try:
         # Check if it is a URI scheme (like ms-settings:)
         if ":" in path and not os.path.isabs(path) and not path.startswith("."):
-            import os as os_mod
-            os_mod.startfile(path)
+            os.startfile(path)
             return {"ok": True, "result": f"Launched URI: {path}"}
 
         subprocess.Popen([path] + args)
