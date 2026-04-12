@@ -48,6 +48,7 @@ class CommandBar(tk.Frame):
             font=("Consolas", 12)
         )
         # Hidden initially
+        self.file_icon.pack_forget()
 
         self.entry.bind("<FocusIn>",   self._on_focus)
         self.entry.bind("<FocusOut>",  self._on_blur)
@@ -101,15 +102,17 @@ class CommandBar(tk.Frame):
         words = content.split()
 
         # 1. Handle dynamic height
-        num_lines = int(self.entry.index('end-1c').split('.')[0])
-        new_height = min(max(num_lines, 1), 5)
-        self.entry.config(height=new_height)
+        try:
+            num_lines = int(self.entry.index('end-1c').split('.')[0])
+            new_height = min(max(num_lines, 1), 5)
+            self.entry.config(height=new_height)
+        except: pass
 
         # 2. Handle large input (> 100 words)
         if len(words) > 100:
             if not self.file_icon.winfo_ismapped():
                 self.entry.pack_forget()
-                self.file_icon.pack(side="left", padx=5)
+                self.file_icon.pack(side="left", padx=5, fill="both", expand=True)
         else:
             if self.file_icon.winfo_ismapped():
                 self.file_icon.pack_forget()

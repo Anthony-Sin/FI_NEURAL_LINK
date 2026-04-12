@@ -86,6 +86,9 @@ def smart_web_action(url_domain: str, instruction: str, expected_title_re: str =
         system_prompt = (
             "You are a web element locator. Given a JSON representation of a LIVE browser window "
             "and an instruction, identify the best matching element and the action to perform.\n\n"
+            "STRICT ATOMIC RULE: You MUST perform exactly ONE interaction (click or type) per response. "
+            "If the instruction implies multiple steps (e.g. 'type X and click Y'), ONLY pick the FIRST step. "
+            "The system will re-scrape for the subsequent steps.\n\n"
             "Return ONLY a JSON object:\n"
             "{\n"
             "  \"action\": \"click_element\" or \"type_in_element\",\n"

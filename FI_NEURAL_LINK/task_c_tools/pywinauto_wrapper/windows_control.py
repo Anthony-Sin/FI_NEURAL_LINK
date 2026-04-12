@@ -14,6 +14,7 @@ import re
 import time
 from typing import Dict, Union
 from pywinauto import Desktop
+import pyautogui
 from FI_NEURAL_LINK.task_b_dashboard.panels.stop_panel import STOP_EVENT
 
 def find_window(title_regex: str) -> Dict[str, Union[bool, str]]:
@@ -172,16 +173,31 @@ def type_in_element(window_title: str, control_title: str, text: str) -> Dict[st
             # More robust typing: ensure focus, click, clear, then type with a small pause
             ctrl.set_focus()
             ctrl.click_input()
-            time.sleep(0.5)
+            time.sleep(1.0) # Longer wait for web apps to react to click
 
             # Use multiple methods for maximum compatibility
             try:
+                # 1. Clear field
                 ctrl.type_keys("^a{BACKSPACE}", with_spaces=True, pause=0.1)
+
+                # 2. Type text via pywinauto
                 ctrl.type_keys(text, with_spaces=True, pause=0.1)
+
+                # 3. Verification & PyAutoGUI fallback
+                time.sleep(0.5)
+                # Check if it worked (loose check as some inputs hide values)
+                val = str(ctrl.window_text())
+                if text not in val:
+                    # Fallback to direct hardware simulation
+                    pyautogui.write(text, interval=0.02)
+
             except:
-                # Fallback to direct text setting if possible, or simpler typing
+                # Deep fallback
                 try: ctrl.set_edit_text(text)
-                except: ctrl.type_keys(text, with_spaces=True)
+                except:
+                    # Last ditch effort: simple click and type
+                    ctrl.click_input()
+                    pyautogui.write(text, interval=0.02)
 
             return {"ok": True, "result": f"Typed '{text}' into '{control_title}'"}
 

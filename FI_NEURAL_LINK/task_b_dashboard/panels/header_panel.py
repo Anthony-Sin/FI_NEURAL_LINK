@@ -83,8 +83,22 @@ class HeaderPanel(tk.Frame):
         self.progress_canvas.coords(self.progress_bar, 0, 0, x1, 1)
 
     def set_doing(self, text: str):
-        """Sets the current doing status (IDLE or active)."""
-        self.status_label.config(text=text.upper())
+        """Sets the current doing status with context awareness."""
+        clean = text.strip().upper()
+        if "NAVIGAT" in clean or "OPEN" in clean:
+            self.status_label.config(text="NAVIGATING", fg="#00f0ff") # Blue
+        elif "TYPE" in clean or "WRITE" in clean:
+            self.status_label.config(text="TYPING", fg="#fcee0a") # Yellow
+        elif "CLICK" in clean or "PRESS" in clean:
+            self.status_label.config(text="INTERACTING", fg="#00ff88") # Green
+        elif "WAIT" in clean or "SLEEP" in clean:
+            self.status_label.config(text="WAITING", fg="#ffaa00") # Orange
+        elif "ANALYZ" in clean or "VISION" in clean:
+            self.status_label.config(text="ANALYZING", fg="#ff003c") # Pink
+        elif "IDLE" in clean:
+            self.status_label.config(text="IDLE", fg="#ffffff")
+        else:
+            self.status_label.config(text="ACTIVE", fg="#ffffff")
 
     def start_timer(self, duration_seconds: int):
         self._duration = max(duration_seconds, 1)

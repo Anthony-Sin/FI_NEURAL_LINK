@@ -1,8 +1,8 @@
 {
   "models": {
     "router": "gemini-2.5-flash-lite",
-    "executor": "gemini-1.5-pro",
-    "web_navigator": "gemini-1.5-pro"
+    "executor": "gemini-2.5-flash-lite",
+    "web_navigator": "gemini-2.5-flash-lite"
   },
   "settings": {
     "save_dir": "web_visited",
