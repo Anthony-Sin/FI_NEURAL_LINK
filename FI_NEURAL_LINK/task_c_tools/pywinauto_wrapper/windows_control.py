@@ -77,29 +77,35 @@ def _find_element(win, identifier: str, control_types: list = None):
 
 def _get_window(window_title_re: str):
     """Internal helper to find a window with fallbacks."""
+    import re
     desktop = Desktop(backend="uia")
 
-    # Strategy 1: Direct match
+    # Strategy 1: Direct match (regex and literal)
     try:
         win = desktop.window(title_re=window_title_re)
-        if win.exists(timeout=2):
-            return win
+        if win.exists(timeout=2): return win
+    except: pass
+
+    try:
+        # Literal match (handles parentheses etc in titles)
+        clean_title = window_title_re.strip(".*")
+        for w in desktop.windows():
+            if clean_title in w.window_text():
+                return desktop.window(handle=w.handle)
     except: pass
 
     # Strategy 2: If it looks like a domain, try common browser suffixes
-    # Handle domain strings that might be padded with .* or not
     if "." in window_title_re:
         clean_domain = window_title_re.replace(".*", "")
         fallbacks = [
-            f".*{clean_domain}.*",
+            f".*{re.escape(clean_domain)}.*",
             f".*Microsoft Edge.*",
             f".*Google Chrome.*"
         ]
         for fb in fallbacks:
             try:
                 win = desktop.window(title_re=fb)
-                if win.exists(timeout=1):
-                    return win
+                if win.exists(timeout=1): return win
             except: continue
 
     # Strategy 3: Just find ANY window that might be a browser if we are desperate
@@ -107,7 +113,7 @@ def _get_window(window_title_re: str):
         for win in desktop.windows():
             title = win.window_text()
             if any(b in title for b in ["Edge", "Chrome", "Firefox"]):
-                return win
+                return desktop.window(handle=win.handle)
     except: pass
 
     return None
@@ -120,11 +126,12 @@ def click_element(window_title: str, control_title: str) -> Dict[str, Union[bool
         return {"ok": False, "result": "Halted by STOP_EVENT"}
     try:
         # Be loose with window matching
-        win = _get_window(f".*{window_title}.*")
-        if not win:
+        win_spec = _get_window(f".*{window_title}.*")
+        if not win_spec:
              return {"ok": False, "result": f"Could not find window matching '{window_title}'"}
 
-        win.wait('ready', timeout=10)
+        # Resolve specification to actual wrapper to ensure properties are accessible
+        win = win_spec.wait('ready', timeout=10)
         win.set_focus()
 
         ctrl = _find_element(win, control_title, ["Button", "Hyperlink", "Text", "MenuItem"])
@@ -143,11 +150,11 @@ def type_in_element(window_title: str, control_title: str, text: str) -> Dict[st
     if STOP_EVENT.is_set():
         return {"ok": False, "result": "Halted by STOP_EVENT"}
     try:
-        win = _get_window(f".*{window_title}.*")
-        if not win:
+        win_spec = _get_window(f".*{window_title}.*")
+        if not win_spec:
              return {"ok": False, "result": f"Could not find window matching '{window_title}'"}
 
-        win.wait('ready', timeout=10)
+        win = win_spec.wait('ready', timeout=10)
         win.set_focus()
 
         ctrl = _find_element(win, control_title, ["Edit", "Document", "Text", "ComboBox"])
@@ -183,9 +190,11 @@ def get_window_elements(window_title_re: str) -> dict:
     if STOP_EVENT.is_set():
         return {"ok": False, "result": "Halted by STOP_EVENT"}
     try:
-        win = _get_window(window_title_re)
-        if not win:
+        win_spec = _get_window(window_title_re)
+        if not win_spec:
              return {"ok": False, "result": f"Could not find window matching '{window_title_re}'"}
+
+        win = win_spec.wait('exists', timeout=5)
 
         elements = []
         # We walk only top-level children and some common types to keep it small
