@@ -31,6 +31,8 @@ def route_goal(goal: str) -> dict:
         "When 'heading over' to a URL, you MUST always call 'save_webpage_structure' after opening it.\n"
         "For complex tasks like 'type X into the search bar', ALWAYS prefer 'smart_web_action' which combines scraping and element discovery. "
         "Signature: smart_web_action(url_domain: str, instruction: str, expected_title_re: str).\n"
+        "CRITICAL: Each 'smart_web_action' must perform exactly ONE atomic UI interaction (e.g., either one click or one type). "
+        "If a goal requires multiple interactions (e.g., 'type X AND click Y'), you MUST emit multiple 'smart_web_action' calls in the 'function_calls' list, each with its own specific instruction.\n"
         "The instruction must be highly specific, referencing element IDs or names from your mental model of the structure if possible: e.g., 'type explain how you work into the email input field with id identifierId'.\n"
         "Do not explain further, do not list next steps, do not reason out loud.\n\n"
         "If LONG:\n"

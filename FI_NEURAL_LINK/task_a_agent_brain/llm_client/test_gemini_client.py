@@ -22,7 +22,7 @@ class TestGeminiClient(unittest.TestCase):
         # Verify
         mock_configure.assert_called_once_with(api_key="test_key")
         mock_model_class.assert_called_once_with(
-            model_name="gemini-2.5-flash-lite",
+            model_name="gemini-1.5-pro",
             system_instruction="System Prompt"
         )
         mock_model_instance.generate_content.assert_called_once_with(["User Message"])
