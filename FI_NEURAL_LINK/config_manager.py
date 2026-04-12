@@ -8,8 +8,8 @@ def load_config() -> dict:
     config = {
         "models": {
             "router": "gemini-2.5-flash-lite",
-            "executor": "gemini-1.5-flash",
-            "web_navigator": "gemini-1.5-flash"
+            "executor": "gemini-1.5-pro",
+            "web_navigator": "gemini-1.5-pro"
         },
         "settings": {
             "save_dir": os.environ.get("WEB_VISITED_DIR", "web_visited")

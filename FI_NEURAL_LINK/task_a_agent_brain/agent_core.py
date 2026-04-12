@@ -238,6 +238,10 @@ def resolve_app_path(name: str) -> str | None:
     if not exe:
         exe = name if name.lower().endswith(".exe") else name + ".exe"
 
+    # Check if it is a URI scheme from aliases
+    if ":" in exe and not os.path.isabs(exe):
+        return exe
+
     # 4. PATH lookup
     found = shutil.which(exe)
     if found:
@@ -342,6 +346,7 @@ class AgentCore:
         Routes a goal and executes it using the RouterBrain/ExecutorAgent architecture.
         """
         self.log(f"Routing goal: {goal}")
+        self.loop_guard.reset()
 
         try:
             raw_decision = route_goal(goal)
@@ -428,7 +433,20 @@ class AgentCore:
                 tool_name = f_call.get("name")
                 args = f_call.get("args", {})
 
+                # Resolve path for launch_app if needed
+                if tool_name == "launch_app" and "path" in args:
+                    resolved = resolve_app_path(args["path"])
+                    if resolved:
+                        args["path"] = resolved
+                        self.log(f"Resolved app path: {resolved}", "debug")
+
                 self.log(f"Executor Action: {action_desc} (Tool: {tool_name})")
+
+                # Loop detection
+                if self.loop_guard.check_loop(action_desc):
+                    self.log(f"Loop detected: {action_desc}", "error")
+                    raise RuntimeError(f"Infinite loop detected: {action_desc}")
+                self.loop_guard.record_action(action_desc)
 
                 if self.tool_router:
                     tool_result = self.tool_router.execute(tool_name, args)

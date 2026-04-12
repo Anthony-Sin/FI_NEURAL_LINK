@@ -1,8 +1,9 @@
 import os
 import threading
-from FI_NEURAL_LINK.task_b_dashboard.dashboard import Dashboard
+# Import order as per AGENTS.md: task_c_tools, then task_a, then task_b
 from FI_NEURAL_LINK.task_c_tools.tool_router import ToolRouter
 from FI_NEURAL_LINK.task_a_agent_brain.agent_core import AgentCore
+from FI_NEURAL_LINK.task_b_dashboard.dashboard import Dashboard
 
 def main():
     # 1. Initialize ToolRouter

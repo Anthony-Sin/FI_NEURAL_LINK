@@ -26,6 +26,9 @@ def smart_web_action(url_domain: str, instruction: str, expected_title_re: str =
         # 1. Extract structure via UI Automation (preserves cookies/session)
         # Search window by expected title or domain name
         search_title = expected_title_re if expected_title_re != ".*" else f".*{url_domain}.*"
+
+        # If the direct domain search fails, we'll try a broader search inside extract_structure_from_window
+        # which now has fallbacks in windows_control._get_window
         obs_res = web_scraper.extract_structure_from_window(search_title)
 
         if not obs_res.get("ok"):
@@ -88,6 +91,7 @@ def smart_web_action(url_domain: str, instruction: str, expected_title_re: str =
             text = decision.get("text")
 
             if action == "click_element":
+                # Use current_title instead of search_title to be more specific once window is found
                 res = windows_control.click_element(current_title, ctrl_title)
             elif action == "type_in_element":
                 res = windows_control.type_in_element(current_title, ctrl_title, text)
