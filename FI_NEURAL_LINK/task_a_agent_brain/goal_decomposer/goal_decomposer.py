@@ -25,6 +25,7 @@ def route_goal(goal: str) -> dict:
         "}\n"
         "Valid functions: click, type_text, launch_app, read_screen, analyze_screen, open_url, click_element, type_in_element, wait, save_webpage_structure, smart_web_action.\n"
         "CRITICAL: Always insert a dynamic 'wait' step after 'launch_app' or 'open_url' (estimate seconds based on likely load time) before any follow-up UI action.\n"
+        "When launching a browser (msedge.exe or chrome.exe), ALWAYS include the \"--new-window\" flag in the 'args' list to ensure a clean workspace.\n"
         "When 'heading over' to a URL, you MUST always call 'save_webpage_structure' after opening it.\n"
         "For complex tasks like 'type X into the search bar', use 'smart_web_action' which combines scraping and element discovery. "
         "Signature: smart_web_action(url_domain: str, instruction: str, expected_title_re: str).\n"
