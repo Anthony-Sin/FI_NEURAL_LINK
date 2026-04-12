@@ -3,7 +3,7 @@ import io
 import mss
 import pytesseract
 from PIL import Image
-from ..llm_client.gemini_client import generate_response
+from ..brain.llm_client import generate_response
 
 def capture_screen() -> Image.Image:
     """
