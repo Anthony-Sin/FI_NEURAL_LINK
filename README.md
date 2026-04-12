@@ -1,63 +1,77 @@
 # FI_NEURAL_LINK: Neural Desktop Automation Agent
 
-FI_NEURAL_LINK is a cyberpunk-themed, AI-powered desktop automation system that translates natural language commands into discrete OS-level actions. It features a strict dual-agent architecture designed for maximum efficiency and reliability.
+FI_NEURAL_LINK is a cyberpunk-themed, AI-powered desktop automation system that translates natural language commands into discrete OS-level actions. It features a strict dual-agent architecture designed for maximum efficiency, reliability, and low latency.
 
-## 🚀 Strict Dual-Agent Architecture
+## 🛠 Detailed Pipeline & Architecture
 
-### 1. Router Brain (Classification & Dispatch)
-Powered by **Gemini 2.5 Flash Lite**, this agent acts as a pure intent classifier:
-- **Single Reasoning Pass**: Receives raw user goals and classifies them as short or long.
-- **Short Tasks**: Emits a `text` summary and a list of `function_calls` for immediate sequential execution.
-- **Long Tasks**: Emits only a **Handoff JSON** with no execution, reasoning, or step listing.
-- **Contract**: "If the task requires more than one tool call or requires waiting for a UI response, stop immediately and emit only the handoff JSON. Do not begin execution."
+The system operates on a dual-agent model where a fast classifier (Router) handles routine tasks and a robust executor handles complex, iterative goals.
 
-### 2. Executor Agent (Observe & Decide)
-Powered by **Gemini 1.5 Pro**, this agent manages complex, iterative tasks through a robust loop:
-- **Agent Loop**: Act → Observe → Decide → Act.
-- **Explicit Observation Strategy**: After every tool call, the model chooses one of:
-    1.  **timer**: Preferred for predictable latency (cheap).
-    2.  **screenshot**: Used for unpredictable outcomes (expensive vision inference).
-    3.  **read_screen (OCR)**: Used for extracting specific text.
-    4.  **next_action**: Used for fully deterministic transitions.
+### 1. Router Brain (Classification, Dispatch & Cache)
+Powered by **Gemini 2.5 Flash Lite**, this agent acts as the system's pre-frontal cortex:
+- **Cache Lookup**: Before calling the LLM, the `CacheManager` checks for a pattern match (e.g., `open * and search for *`). If a hit is found, it reconstructs the plan using extracted variables and executes immediately.
+- **Intent Classification**: If no cache hit, the Router performs a single reasoning pass to classify the goal as **Short** or **Long**.
+- **Short Tasks**: For simple goals, it emits a `text` summary and a list of `function_calls` for immediate sequential execution.
+- **Long Tasks**: For complex goals, it emits a **Handoff JSON** containing the goal, UI target, and any iterable payload. It is strictly forbidden from beginning execution or listing steps.
+- **Cache Promotion**: Successful "Short Task" executions are recorded. If a specific goal pattern succeeds 3 times, it is promoted to the permanent cache for sub-100ms dispatch in future sessions.
+
+### 2. Executor Agent (The Iterative Loop)
+Also powered by **Gemini 2.5 Flash Lite**, this agent manages complex tasks through a robust **Act → Observe → Decide** loop:
+- **Stateless Continuation**: Each turn, the agent receives a "continuation" object containing the current state, remaining queue, and last action result.
+- **Observation Cost Hierarchy**: To minimize API costs and latency, the agent follows a strict observation protocol:
+    1.  **timer**: Preferred for predictable latency (e.g., app launching).
+    2.  **next_action**: Used for deterministic transitions where no check is needed.
+    3.  **read_screen (OCR)**: Medium cost, used for extracting specific text.
+    4.  **screenshot (Vision)**: Highest cost, used only when the UI state is unpredictable.
+- **Loop Guard**: A `LoopGuard` monitors the last $N$ actions. If it detects a repeating sequence of descriptions, it raises a `RuntimeError` to prevent infinite execution loops.
+
+### 3. Safety & Control Systems
+- **Rate Limiter**: Controls the frequency of tool calls (default: 30 calls per 10 seconds) to prevent system flooding or API abuse.
+- **STOP_EVENT**: A global interrupt signal that can be triggered from the UI (Stop Panel) or programmatically to immediately halt all automation.
+- **Credential Safety**: The `CredentialManager` ensures API keys are sourced from secure environment variables.
 
 ## 🧠 Navigation & Web Analysis Strategy
-The agent follows a strict protocol for web-based tasks:
-1.  **Webpage Structure Extraction**: When navigating to a URL, the agent MUST call `save_webpage_structure`. This tool uses `BeautifulSoup` to extract interactive elements (buttons, inputs, links) and saves a `webpage_structure.json` file in the root directory.
-2.  **Locality over Vision**: The agent prioritizes searching the saved structure to find element titles and attributes for local UI Automation.
+The agent follows a specialized protocol for browser-based automation:
+1.  **Isolation**: Browsers are always launched with the `--new-window` flag to ensure a clean, predictable workspace.
+2.  **Webpage Structure Extraction**: The agent uses `save_webpage_structure` (BeautifulSoup) to map interactive elements to a local JSON.
+3.  **Locality over Vision**: Instead of relying on screenshots, the agent searches the saved structure to find element IDs and attributes, enabling fast UI Automation via `pywinauto`.
+4.  **Login Awareness**: The Router Brain is instructed to verify if a site (e.g., Gmail) is already in a "logged-in" state before attempting credential entry.
 
 ## ⚠️ Unexpected UI State Handling
-The system implements fully realized logic for messy real-world UIs:
-- **Loading Spinners**: Extend timers and re-verify via screenshot.
-- **Error Detection**: Automatic screenshot capture and recovery attempts based on error text.
-- **CAPTCHAs**: Immediate pause and signal for human intervention (`human_intervention_required`).
-- **Unexpected Modals**: Attempted dismissal via UI automation and re-verification.
+- **Loading Spinners**: The system extends timers and re-verifies via screenshot if a process is taking longer than expected.
+- **CAPTCHAs**: Triggers a `human_intervention_required` status, pausing execution for the user to solve the challenge.
+- **Unexpected Modals**: The agent attempts to dismiss modals using general click actions before resuming the primary task.
 
 ## 🧠 Capabilities & Tool Priority
-1.  **UI Automation (`click_element`, `type_in_element`)**: Primary method for browser-based tasks.
-2.  **OCR (`read_screen`)**: Secondary fallback for text extraction.
-3.  **Vision (`analyze_screen`)**: Final fallback for semantic understanding.
+1.  **UI Automation (`click_element`, `type_in_element`)**: Primary method using pywinauto for deep OS/Browser integration.
+2.  **Hardware Simulation (`click`, `type_text`)**: Secondary method using pyautogui for coordinate-based interaction.
+3.  **OCR & Vision**: Fallback methods for unstructured or non-accessible UIs.
 
 ## 🚩 Limitations
-- **Brittle Scraping**: `save_webpage_structure` uses `requests`, which may fail on authenticated or dynamic JavaScript-heavy pages where a real browser session is required.
-- **Stateless Router**: The Router Brain does not have access to previous execution results, which can lead to suboptimal routing if a task evolves.
-- **Minimal Feedback in Short Tasks**: Short tasks execute a fire-and-forget sequence without intermediate observation, unlike the robust Executor Agent loop.
+- **Brittle Scraping**: The current `requests`-based scraper may fail on JavaScript-heavy pages.
+- **Windows-Centric**: Deeply coupled with Windows UI Automation (pywinauto).
 
 ## 💡 Architectural Suggestions for Improvement
-1.  **In-Browser Scraper**: Replace the `requests`-based scraper with a UI Automation script that extracts the DOM directly from the active Microsoft Edge/Chrome window to preserve user sessions and cookies.
-2.  **Multimodal Router**: Feed a current screen thumbnail into the Router Brain to allow it to make better "Short" vs "Long" decisions based on the actual UI state.
-3.  **Unified State Machine**: Merge the short and long task execution paths into a single state machine where the Router Brain simply initializes the state for the Executor Agent.
+1.  **Semantic Memory Layer**: Integrate a Vector Database (e.g., ChromaDB) to store and retrieve past successful execution traces, allowing the agent to "remember" how to solve similar complex tasks without re-planning.
+2.  **Router Feedback Loop**: If a "Short Task" generated by the Router fails, the system should automatically hand it off to the Executor Agent with the failure context, rather than simply stopping.
+3.  **Cross-Platform Abstraction**: Create a unified UI interaction layer that detects the OS and switches between `pywinauto` (Windows), `AXUIElement` (macOS), and `at-spi2` (Linux).
+4.  **Local Vision Fallback**: Use a lightweight, local YOLO or MobileNet model for real-time icon/button detection to reduce reliance on expensive Gemini Vision calls for simple UI verification.
+
+## 🛠 Toolset Expansion Suggestions (Low-Level OS)
+1.  **Secure Terminal Tool**: A tool that allows the agent to execute PowerShell or Bash commands in a restricted environment, enabling tasks like package installation or system configuration.
+2.  **Structured File Manager**: Move beyond simple clicks to high-level file operations (e.g., `organize_directory`, `find_large_files`, `batch_rename`) using Python's `os` and `shutil` libraries.
+3.  **System Performance Monitor**: A tool using `psutil` that allows the agent to diagnose slow performance by identifying resource-heavy processes and offering to terminate them.
+4.  **Registry & Config Manager**: A specialized tool for reading and writing to the Windows Registry or `.ini`/`.json` config files safely, allowing the agent to "tune" the OS based on user requests.
 
 ## 🛠 Getting Started
 
 ### Prerequisites
 - Python 3.12+
-- Gemini API Key (set as `GEMINI_API_KEY` environment variable)
-- Tesseract OCR installed on the system
+- Gemini API Key (set as `GEMINI_API_KEY`)
+- Tesseract OCR installed
 
 ### Installation
 ```bash
 pip install -r requirements.txt
-pip install beautifulsoup4 requests
 ```
 
 ### Running the Agent
