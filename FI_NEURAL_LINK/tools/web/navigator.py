@@ -5,6 +5,7 @@ from . import scraper
 from ..automation import windows_control
 from ...brain import llm_client as gemini_client
 from ...brain.json_parser import parse_llm_json
+from ...brain.memory import FailureMemory
 from FI_NEURAL_LINK.core.config import get_model
 from FI_NEURAL_LINK.ui.panels.stop_panel import STOP_EVENT
 
@@ -17,8 +18,9 @@ def smart_web_action(url_domain: str, instruction: str, expected_title_re: str =
     import logging
     logger = logging.getLogger("AgentCore")
 
-    max_attempts = 5
+    max_attempts = 3
     last_error = ""
+    failure_mem = FailureMemory()
     for attempt in range(1, max_attempts + 1):
         if STOP_EVENT.is_set():
             return {"ok": False, "result": "Halted by STOP_EVENT"}
@@ -29,9 +31,13 @@ def smart_web_action(url_domain: str, instruction: str, expected_title_re: str =
         # Search window by expected title or domain name
         search_title = expected_title_re if expected_title_re != ".*" else f".*{url_domain}.*"
 
+        start_time = time.time()
         # If the direct domain search fails, we'll try a broader search inside extract_structure_from_window
         # which now has fallbacks in windows_control._get_window
         obs_res = scraper.extract_structure_from_window(search_title)
+        load_time = time.time() - start_time
+        logger.info(f"Page structure extracted in {load_time:.2f}s. Adding 3s safety buffer.")
+        time.sleep(3) # User requested 3s safety buffer
 
         # Update web_visited folder during interactive sessions
         if obs_res.get("ok"):
@@ -108,6 +114,12 @@ def smart_web_action(url_domain: str, instruction: str, expected_title_re: str =
         )
 
         user_msg = f"Structure: {json.dumps(compact_structure)}\nInstruction: {instruction}"
+
+        # Add failure memory to prompt
+        failure_block = failure_mem.get_failure_block(url_domain)
+        if failure_block:
+            user_msg = f"{failure_block}\n\n{user_msg}"
+
         if last_error:
             user_msg += f"\nNote from previous attempt: {last_error}"
 
@@ -133,9 +145,18 @@ def smart_web_action(url_domain: str, instruction: str, expected_title_re: str =
                 return {"ok": False, "result": f"Unknown action: {action}"}
 
             if res.get("ok"):
+                logger.info("Action successful. Observing changes...")
+                time.sleep(2)
+                post_obs = scraper.extract_structure_from_window(current_title)
+                if post_obs.get("ok"):
+                    new_elements = post_obs.get("elements", [])
+                    # Simple detection of new elements (e.g. popups)
+                    if len(new_elements) > len(elements):
+                        logger.info(f"Detected {len(new_elements) - len(elements)} new elements. Possible popup.")
                 return res
             else:
                 last_error = res.get('result')
+                failure_mem.record_failure(url_domain, instruction, last_error)
                 logger.warning(f"Action failed: {last_error}. Retrying...")
                 time.sleep(3)
 

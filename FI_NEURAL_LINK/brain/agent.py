@@ -288,6 +288,8 @@ class AgentCore:
 
     def __init__(self, config: dict, tool_router=None, log_callback=None):
         self._is_busy = False
+        self.error_retry_count = 0
+        self.max_error_retries = 3
         """
         Initializes the AgentCore.
         """
@@ -342,6 +344,7 @@ class AgentCore:
         """
         Routes a goal and executes it using the RouterBrain/ExecutorAgent architecture.
         """
+        self.error_retry_count = 0
         if self._is_busy:
             self.log("AGENT IS CURRENTLY BUSY. QUEUEING REJECTED.", "warning")
             return []
@@ -353,6 +356,7 @@ class AgentCore:
             self._is_busy = False
 
     def _perform_goal(self, goal: str) -> list:
+        self.current_goal = goal # Store for retries
         self.log(f"Routing goal: {goal}")
         self.loop_guard.reset()
 
@@ -432,7 +436,26 @@ class AgentCore:
                 results.append({"description": f"Executed {name}", "status": status, "result": tool_result.get("result")})
 
                 if not tool_result.get("ok"):
-                    break # Stop if a step fails
+                    self.error_retry_count += 1
+                    if self.error_retry_count > self.max_error_retries:
+                        self.log(f"Reached maximum of {self.max_error_retries} error retries. Shutting down.", "error")
+                        print("CRITICAL: could not do task on the terminal", flush=True)
+                        break
+
+                    # User requested to ask for help on failure
+                    from FI_NEURAL_LINK.brain.llm_client import request_user_input
+                    self.log(f"Step {name} failed: {tool_result.get('result')}. Requesting user intervention.", "warning")
+                    user_resp = request_user_input(f"Action '{name}' failed with error: {tool_result.get('result')}. How should I proceed? (Type 'exit' to shut down)")
+
+                    if not user_resp or user_resp.lower() == 'exit':
+                        self.log("No response or exit command received. Shutting down task.", "error")
+                        print("CRITICAL: could not do task on the terminal", flush=True)
+                        break
+                    else:
+                        self.log(f"Received user instruction: {user_resp}. Retrying goal with new context.")
+                        # Use stored goal for retries
+                        original_goal = getattr(self, 'current_goal', "unknown goal")
+                        return self._perform_goal(f"{original_goal} (Correction: {user_resp})")
             else:
                 results.append({"description": f"Executed {name}", "status": "failed", "result": "No tool router"})
                 break
@@ -499,6 +522,29 @@ class AgentCore:
 
                 if self.tool_router:
                     tool_result = self.tool_router.execute(tool_name, args)
+
+                    if not tool_result.get("ok"):
+                        self.error_retry_count += 1
+                        if self.error_retry_count > self.max_error_retries:
+                            self.log(f"Reached maximum of {self.max_error_retries} error retries. Shutting down.", "error")
+                            print("CRITICAL: could not do task on the terminal", flush=True)
+                            break
+
+                        from FI_NEURAL_LINK.brain.llm_client import request_user_input
+                        self.log(f"Executor step failed: {tool_result.get('result')}. Requesting user intervention.", "warning")
+                        user_resp = request_user_input(f"Action '{tool_name}' failed: {tool_result.get('result')}. How should I proceed? (Type 'exit' to shut down)")
+
+                        if not user_resp or user_resp.lower() == 'exit':
+                            self.log("No response or exit command received. Shutting down task.", "error")
+                            print("CRITICAL: could not do task on the terminal", flush=True)
+                            break
+                        else:
+                            self.log(f"Received user instruction: {user_resp}. Updating goal context.")
+                            continuation["goal"] = f"{continuation['goal']} (Correction: {user_resp})"
+                            # Continue loop with updated goal
+                            continuation["last_action_result"] = f"User corrected: {user_resp}"
+                            continue
+
                     continuation["last_action_result"] = tool_result.get("result")
 
                     # 3. OBSERVE & DECIDE (the model chooses in its next turn, but we verify here)
