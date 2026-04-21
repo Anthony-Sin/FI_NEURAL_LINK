@@ -288,6 +288,8 @@ class AgentCore:
 
     def __init__(self, config: dict, tool_router=None, log_callback=None):
         self._is_busy = False
+        self.error_retry_count = 0
+        self.max_error_retries = 3
         """
         Initializes the AgentCore.
         """
@@ -342,6 +344,7 @@ class AgentCore:
         """
         Routes a goal and executes it using the RouterBrain/ExecutorAgent architecture.
         """
+        self.error_retry_count = 0
         if self._is_busy:
             self.log("AGENT IS CURRENTLY BUSY. QUEUEING REJECTED.", "warning")
             return []
@@ -433,6 +436,12 @@ class AgentCore:
                 results.append({"description": f"Executed {name}", "status": status, "result": tool_result.get("result")})
 
                 if not tool_result.get("ok"):
+                    self.error_retry_count += 1
+                    if self.error_retry_count > self.max_error_retries:
+                        self.log(f"Reached maximum of {self.max_error_retries} error retries. Shutting down.", "error")
+                        print("CRITICAL: could not do task on the terminal", flush=True)
+                        break
+
                     # User requested to ask for help on failure
                     from FI_NEURAL_LINK.brain.llm_client import request_user_input
                     self.log(f"Step {name} failed: {tool_result.get('result')}. Requesting user intervention.", "warning")
@@ -477,16 +486,9 @@ class AgentCore:
         }
 
         results = []
-        api_calls = 0
-        max_api_calls = 3
         try:
             while not STOP_EVENT.is_set():
-                if api_calls >= max_api_calls:
-                    self.log(f"Reached maximum of {max_api_calls} API calls. Stopping.", "warning")
-                    break
-
                 # 1. GENERATE NEXT STEP (Act)
-                api_calls += 1
                 executor_output = self._call_executor(continuation)
 
                 if executor_output.get("status") == "terminated":
@@ -522,6 +524,12 @@ class AgentCore:
                     tool_result = self.tool_router.execute(tool_name, args)
 
                     if not tool_result.get("ok"):
+                        self.error_retry_count += 1
+                        if self.error_retry_count > self.max_error_retries:
+                            self.log(f"Reached maximum of {self.max_error_retries} error retries. Shutting down.", "error")
+                            print("CRITICAL: could not do task on the terminal", flush=True)
+                            break
+
                         from FI_NEURAL_LINK.brain.llm_client import request_user_input
                         self.log(f"Executor step failed: {tool_result.get('result')}. Requesting user intervention.", "warning")
                         user_resp = request_user_input(f"Action '{tool_name}' failed: {tool_result.get('result')}. How should I proceed? (Type 'exit' to shut down)")
