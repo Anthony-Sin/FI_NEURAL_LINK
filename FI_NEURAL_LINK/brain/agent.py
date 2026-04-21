@@ -353,6 +353,7 @@ class AgentCore:
             self._is_busy = False
 
     def _perform_goal(self, goal: str) -> list:
+        self.current_goal = goal # Store for retries
         self.log(f"Routing goal: {goal}")
         self.loop_guard.reset()
 
@@ -432,7 +433,20 @@ class AgentCore:
                 results.append({"description": f"Executed {name}", "status": status, "result": tool_result.get("result")})
 
                 if not tool_result.get("ok"):
-                    break # Stop if a step fails
+                    # User requested to ask for help on failure
+                    from FI_NEURAL_LINK.brain.llm_client import request_user_input
+                    self.log(f"Step {name} failed: {tool_result.get('result')}. Requesting user intervention.", "warning")
+                    user_resp = request_user_input(f"Action '{name}' failed with error: {tool_result.get('result')}. How should I proceed? (Type 'exit' to shut down)")
+
+                    if not user_resp or user_resp.lower() == 'exit':
+                        self.log("No response or exit command received. Shutting down task.", "error")
+                        print("CRITICAL: could not do task on the terminal", flush=True)
+                        break
+                    else:
+                        self.log(f"Received user instruction: {user_resp}. Retrying goal with new context.")
+                        # Use stored goal for retries
+                        original_goal = getattr(self, 'current_goal', "unknown goal")
+                        return self._perform_goal(f"{original_goal} (Correction: {user_resp})")
             else:
                 results.append({"description": f"Executed {name}", "status": "failed", "result": "No tool router"})
                 break
@@ -463,9 +477,16 @@ class AgentCore:
         }
 
         results = []
+        api_calls = 0
+        max_api_calls = 3
         try:
             while not STOP_EVENT.is_set():
+                if api_calls >= max_api_calls:
+                    self.log(f"Reached maximum of {max_api_calls} API calls. Stopping.", "warning")
+                    break
+
                 # 1. GENERATE NEXT STEP (Act)
+                api_calls += 1
                 executor_output = self._call_executor(continuation)
 
                 if executor_output.get("status") == "terminated":
@@ -499,6 +520,23 @@ class AgentCore:
 
                 if self.tool_router:
                     tool_result = self.tool_router.execute(tool_name, args)
+
+                    if not tool_result.get("ok"):
+                        from FI_NEURAL_LINK.brain.llm_client import request_user_input
+                        self.log(f"Executor step failed: {tool_result.get('result')}. Requesting user intervention.", "warning")
+                        user_resp = request_user_input(f"Action '{tool_name}' failed: {tool_result.get('result')}. How should I proceed? (Type 'exit' to shut down)")
+
+                        if not user_resp or user_resp.lower() == 'exit':
+                            self.log("No response or exit command received. Shutting down task.", "error")
+                            print("CRITICAL: could not do task on the terminal", flush=True)
+                            break
+                        else:
+                            self.log(f"Received user instruction: {user_resp}. Updating goal context.")
+                            continuation["goal"] = f"{continuation['goal']} (Correction: {user_resp})"
+                            # Continue loop with updated goal
+                            continuation["last_action_result"] = f"User corrected: {user_resp}"
+                            continue
+
                     continuation["last_action_result"] = tool_result.get("result")
 
                     # 3. OBSERVE & DECIDE (the model chooses in its next turn, but we verify here)

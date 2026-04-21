@@ -95,3 +95,14 @@ def scroll(x, y, clicks):
         return {"ok": True, "result": f"Scrolled {clicks} clicks at ({x}, {y})"}
     except Exception as e:
         return {"ok": False, "result": str(e)}
+
+def drag_and_drop(start_x, start_y, end_x, end_y, duration=1.0):
+    """Perform a drag and drop operation from start to end coordinates."""
+    if STOP_EVENT.is_set():
+        return {"ok": False, "result": "Halted by STOP_EVENT"}
+    try:
+        pyautogui.moveTo(start_x, start_y)
+        pyautogui.dragTo(end_x, end_y, duration=duration, button='left')
+        return {"ok": True, "result": f"Dragged from ({start_x}, {start_y}) to ({end_x}, {end_y})"}
+    except Exception as e:
+        return {"ok": False, "result": str(e)}

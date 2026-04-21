@@ -41,6 +41,7 @@ def route_goal(goal: str, cache_block: str = "") -> str:
         "If a goal requires multiple steps, you MUST emit a list of separate function_calls. "
         "Correct: [{'name': 'smart_web_action', 'args': {'instruction': 'type hello'}}, {'name': 'smart_web_action', 'args': {'instruction': 'click search'}}] "
         "Incorrect: [{'name': 'smart_web_action', 'args': {'instruction': 'type hello and click search'}}]\n"
+        "REPETITION: If the user asks to repeat an action multiple times (e.g., 'do X 10 times'), you MUST expand the list of function_calls to include all repetitions.\n"
         "The instruction must be highly specific, referencing element IDs or names from your mental model of the structure if possible: e.g., 'type explain how you work into the email input field with id identifierId'.\n"
         "Do not explain further, do not list next steps, do not reason out loud.\n\n"
         "If LONG:\n"
