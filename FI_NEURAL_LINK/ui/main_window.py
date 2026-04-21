@@ -4,8 +4,9 @@ from FI_NEURAL_LINK.ui.overlay.overlay_window import OverlayWindow
 from FI_NEURAL_LINK.ui.panels.header_panel import HeaderPanel
 from FI_NEURAL_LINK.ui.panels.middle_panels import MiddlePanels
 from FI_NEURAL_LINK.ui.panels.command_bar import CommandBar
-from FI_NEURAL_LINK.ui.theme import CYBER_BLACK, CYBER_YELLOW
+from FI_NEURAL_LINK.ui.theme import CYBER_BLACK, CYBER_YELLOW, CYBER_PINK, CYBER_WHITE
 from FI_NEURAL_LINK.ui.voice_system import VoiceSystem
+from FI_NEURAL_LINK.tools.automation.recorder import start_recording, stop_recording
 
 class Dashboard:
     def __init__(self):
@@ -39,6 +40,7 @@ class Dashboard:
             submit_callback=self._handle_voice_submit
         )
         self.command_bar.mic_btn.bind("<Button-1>", lambda e: self.voice.start_listening())
+        self.command_bar.rec_btn.bind("<Button-1>", lambda e: self._toggle_recording())
 
         # Wire window controls
         self.header.min_btn.bind("<Button-1>", lambda e: self.root.minimize())
@@ -51,10 +53,10 @@ class Dashboard:
     def start(self):
         threading.Thread(target=self.root.mainloop, daemon=True).start()
 
-    def log(self, text: str, level: str = "info"):
+    def log(self, text: str, level: str = "info", retry_count: int = 0):
         self.middle.add_log(text, level)
-        if "STEP" in text.upper():
-            self.header.set_doing(text)
+        if "STEP" in text.upper() or "EXECUTOR ACTION" in text.upper():
+            self.header.set_doing(text, retry_count=retry_count)
 
         # Auto-trigger timer from logs (e.g., "Waited for 5 seconds")
         import re
@@ -93,3 +95,20 @@ class Dashboard:
         self._check_for_timer(text)
         if self.command_bar.on_submit:
             self.command_bar.on_submit(text)
+
+    def _toggle_recording(self):
+        if self.command_bar.rec_btn.cget("text") == "REC":
+            res = start_recording()
+            if res.get("ok"):
+                self.command_bar.rec_btn.config(text="STOP", fg=CYBER_WHITE, bg=CYBER_PINK)
+                self.log("Recording user actions...", "warning")
+            else:
+                self.log(f"Failed to start recording: {res.get('result')}", "error")
+        else:
+            res = stop_recording()
+            if res.get("ok"):
+                self.command_bar.rec_btn.config(text="REC", fg=CYBER_PINK, bg=CYBER_BLACK)
+                self.log(f"Recording stopped. Captured {len(res.get('events', []))} events.", "success")
+                # In a real app, we might do something with the events here
+            else:
+                self.log(f"Failed to stop recording: {res.get('result')}", "error")

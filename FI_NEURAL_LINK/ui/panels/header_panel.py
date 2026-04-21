@@ -27,7 +27,7 @@ class HeaderPanel(tk.Frame):
 
         self.status_label = tk.Label(
             self.status_row,
-            text="IDLE",
+            text="IDLE 0",
             bg=CYBER_BLACK,
             fg=CYBER_WHITE,
             font=("Consolas", 14, "bold"),
@@ -82,23 +82,25 @@ class HeaderPanel(tk.Frame):
         x1 = (percent / 100.0) * w
         self.progress_canvas.coords(self.progress_bar, 0, 0, x1, 1)
 
-    def set_doing(self, text: str):
+    def set_doing(self, text: str, retry_count: int = 0):
         """Sets the current doing status with context awareness."""
         clean = text.strip().upper()
+        suffix = f" {retry_count}" if retry_count > 0 else " 0"
+
         if "NAVIGAT" in clean or "OPEN" in clean:
-            self.status_label.config(text="NAVIGATING", fg="#00f0ff") # Blue
+            self.status_label.config(text="NAVIGATING" + suffix, fg="#00f0ff") # Blue
         elif "TYPE" in clean or "WRITE" in clean:
-            self.status_label.config(text="TYPING", fg="#fcee0a") # Yellow
+            self.status_label.config(text="TYPING" + suffix, fg="#fcee0a") # Yellow
         elif "CLICK" in clean or "PRESS" in clean:
-            self.status_label.config(text="INTERACTING", fg="#00ff88") # Green
+            self.status_label.config(text="INTERACTING" + suffix, fg="#00ff88") # Green
         elif "WAIT" in clean or "SLEEP" in clean:
-            self.status_label.config(text="WAITING", fg="#ffaa00") # Orange
+            self.status_label.config(text="WAITING" + suffix, fg="#ffaa00") # Orange
         elif "ANALYZ" in clean or "VISION" in clean:
-            self.status_label.config(text="ANALYZING", fg="#ff003c") # Pink
+            self.status_label.config(text="ANALYZING" + suffix, fg="#ff003c") # Pink
         elif "IDLE" in clean:
-            self.status_label.config(text="IDLE", fg="#ffffff")
+            self.status_label.config(text="IDLE" + suffix, fg="#ffffff")
         else:
-            self.status_label.config(text="ACTIVE", fg="#ffffff")
+            self.status_label.config(text="ACTIVE" + suffix, fg="#ffffff")
 
     def start_timer(self, duration_seconds: int):
         self._duration = max(duration_seconds, 1)

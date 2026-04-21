@@ -272,7 +272,12 @@ class DashboardLogHandler(logging.Handler):
         try:
             msg = self.format(record)
             level = record.levelname.lower()
-            self.callback(msg, level)
+            retry_count = getattr(record, 'retry_count', 0)
+            # Support passing retry_count to callback if it supports it
+            try:
+                self.callback(msg, level, retry_count=retry_count)
+            except TypeError:
+                self.callback(msg, level)
         except Exception:
             self.handleError(record)
 
@@ -329,6 +334,9 @@ class AgentCore:
 
     def log(self, text, level="info"):
         """Directly uses the logger instance."""
+        # Check if the log callback is a dashboard log to pass extra info
+        # We use a hacky way to check if it's the dashboard.log by checking its __name__ or just try to pass it
+
         level_map = {
             "debug":    logging.DEBUG,
             "info":     logging.INFO,
@@ -336,7 +344,10 @@ class AgentCore:
             "error":    logging.ERROR,
             "critical": logging.CRITICAL,
         }
-        self.logger.log(level_map.get(level.lower(), logging.INFO), text)
+
+        # We want to pass retry_count if possible, but logging.log doesn't support it directly.
+        # The DashboardLogHandler will handle it if we add it to the record.
+        self.logger.log(level_map.get(level.lower(), logging.INFO), text, extra={'retry_count': self.error_retry_count})
 
     # ── Goal Execution ──────────────────────────────────────────────────────
 
