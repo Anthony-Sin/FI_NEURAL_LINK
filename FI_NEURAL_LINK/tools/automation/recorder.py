@@ -1,6 +1,7 @@
 import time
 import threading
 from pynput import mouse, keyboard
+from pywinauto import Desktop
 from FI_NEURAL_LINK.ui.panels.stop_panel import STOP_EVENT
 
 class ActionRecorder:
@@ -14,12 +15,28 @@ class ActionRecorder:
     def _on_click(self, x, y, button, pressed):
         if pressed:
             elapsed = time.time() - self.start_time
+
+            element_info = None
+            try:
+                # Attempt to identify element under cursor
+                element = Desktop(backend="uia").from_point(x, y)
+                if element:
+                    element_info = {
+                        "name": element.window_text(),
+                        "auto_id": element.element_info.automation_id,
+                        "control_type": element.element_info.control_type,
+                        "window_title": element.top_level_parent().window_text()
+                    }
+            except:
+                pass
+
             self.events.append({
                 "type": "click",
                 "time": elapsed,
                 "x": x,
                 "y": y,
-                "button": str(button)
+                "button": str(button),
+                "element": element_info
             })
 
     def _on_press(self, key):
@@ -88,7 +105,20 @@ class ActionRecorder:
                     calls.append({"name": "wait", "args": {"seconds": round(wait_time, 1)}})
 
             if event["type"] == "click":
-                calls.append({"name": "click", "args": {"x": event["x"], "y": event["y"]}})
+                element = event.get("element")
+                if element and (element.get("name") or element.get("auto_id")):
+                    # Prefer UI Automation if we have element info
+                    identifier = element.get("auto_id") or element.get("name")
+                    calls.append({
+                        "name": "click_element",
+                        "args": {
+                            "window_title": element["window_title"],
+                            "control_title": identifier
+                        }
+                    })
+                else:
+                    # Fallback to coordinates
+                    calls.append({"name": "click", "args": {"x": event["x"], "y": event["y"]}})
             elif event["type"] == "keypress":
                 key = event["key"]
                 if len(key) == 1:
