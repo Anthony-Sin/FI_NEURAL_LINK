@@ -55,7 +55,8 @@ class Dashboard:
 
     def log(self, text: str, level: str = "info", retry_count: int = 0, api_calls: int = 0):
         self.middle.add_log(text, level)
-        if "STEP" in text.upper() or "EXECUTOR ACTION" in text.upper():
+        upper_text = text.upper()
+        if "STEP" in upper_text or "EXECUTOR ACTION" in upper_text or "IDLE" in upper_text or "FINALIZE" in upper_text:
             self.header.set_doing(text)
 
         if api_calls > 0:

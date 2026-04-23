@@ -368,9 +368,12 @@ class AgentCore:
 
         self._is_busy = True
         try:
-            return self._perform_goal(goal)
+            res = self._perform_goal(goal)
+            self.log("Goal execution finalized. Returning to IDLE.")
+            return res
         finally:
             self._is_busy = False
+            self.log("IDLE", "debug")
 
     def _perform_goal(self, goal: str) -> list:
         self.current_goal = goal # Store for retries
