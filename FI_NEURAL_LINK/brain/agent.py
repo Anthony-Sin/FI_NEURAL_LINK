@@ -368,9 +368,12 @@ class AgentCore:
 
         self._is_busy = True
         try:
-            return self._perform_goal(goal)
+            res = self._perform_goal(goal)
+            self.log("Goal execution finalized. Returning to IDLE.")
+            return res
         finally:
             self._is_busy = False
+            self.log("IDLE", "debug")
 
     def _perform_goal(self, goal: str) -> list:
         self.current_goal = goal # Store for retries
@@ -381,7 +384,7 @@ class AgentCore:
         try:
             cached_plan = self.cache_mgr.match_and_reconstruct(goal)
             if cached_plan:
-                self.log("CACHE HIT! Executing macro plan...", "success")
+                self.log("CACHE HIT! Executing macro plan...", "debug")
                 # Convert to 'short task' format for _execute_short_task
                 decision = {"text": "Executing cached plan", "function_calls": cached_plan}
                 results = self._perform_short_task(decision)
@@ -402,7 +405,7 @@ class AgentCore:
 
         if "function_call" in decision or "function_calls" in decision:
             results = self._perform_short_task(decision)
-            # Record success for cache
+            # Record success for cache (Silent)
             if results and all(r["status"] == "completed" for r in results):
                 f_calls = decision.get("function_calls") or [decision.get("function_call")]
                 f_calls = [f for f in f_calls if f]
@@ -593,22 +596,37 @@ class AgentCore:
         return parse_llm_json(self._raw_call_executor(continuation))
 
     def _perform_recording_replay(self, decision: dict) -> list:
-        """Replays a captured user recording X times."""
-        from FI_NEURAL_LINK.tools.automation.recorder import get_recorded_calls
+        """
+        Replays a captured user recording X times.
+        Now uses LLM to reason about the recording if instructions are changed.
+        """
+        from FI_NEURAL_LINK.tools.automation.recorder import get_recorded_calls, get_recorded_summary
         recorded_calls = get_recorded_calls()
+        recorded_summary = get_recorded_summary()
 
         if not recorded_calls:
             self.log("No recording found to replay.", "error")
             return []
 
         repeat_count = decision.get("repeat_count", 1)
-        self.log(f"Replaying recording {repeat_count} times.")
 
+        # If user provided extra instruction ("do the same but teal"), hand off to Executor
+        if "Instruction" in str(decision) or "Correction" in str(self.current_goal):
+            self.log(f"Variation requested. Handing off to Executor with recording context.")
+            handoff = {
+                "task_type": "long",
+                "goal": self.current_goal,
+                "ui_target": "Recorded Context",
+                "iterable_payload": [f"Iteration {i+1}" for i in range(repeat_count)],
+                "parameters": {"recording_summary": recorded_summary}
+            }
+            return self._perform_long_task(handoff)
+
+        self.log(f"Replaying recording {repeat_count} times.")
         all_results = []
         for i in range(repeat_count):
             if STOP_EVENT.is_set(): break
             self.log(f"Starting iteration {i+1}/{repeat_count}")
-            # Execute the recording as a short task (sequence of calls)
             res = self._perform_short_task({"text": f"Iteration {i+1}", "function_calls": recorded_calls})
             all_results.extend(res)
 
@@ -621,6 +639,10 @@ class AgentCore:
     def _raw_call_executor(self, continuation: dict) -> str:
         """Calls the Gemini model and returns the raw response string."""
         is_resume = continuation.get("status") == "resuming"
+
+        recording_context = ""
+        if "recording_summary" in continuation.get("parameters", {}):
+            recording_context = f"\n\nRECORDED ACTIONS CONTEXT:\n{continuation['parameters']['recording_summary']}\nUse this as a guide to achieve the goal."
 
         # Baked-in observation cost hierarchy
         obs_cost_instructions = (
@@ -647,6 +669,7 @@ class AgentCore:
                 "Goal: {goal}\n"
                 "UI Target: {ui_target}\n"
                 "Queue: {queue}\n\n"
+                "{recording}"
                 "Tools: launch_app (path, args), open_url (url), click, type_text, wait, etc.\n"
                 "To navigate to a page, use 'launch_app' with 'args' or 'open_url'.\n\n"
                 "{obs_cost}\n\n"
@@ -657,6 +680,7 @@ class AgentCore:
                 goal=continuation["goal"],
                 ui_target=continuation["ui_target"],
                 queue=json.dumps(continuation["remaining_queue"]),
+                recording=recording_context,
                 obs_cost=obs_cost_instructions,
                 ui_state=ui_state_handling
             )

@@ -55,7 +55,8 @@ class Dashboard:
 
     def log(self, text: str, level: str = "info", retry_count: int = 0, api_calls: int = 0):
         self.middle.add_log(text, level)
-        if "STEP" in text.upper() or "EXECUTOR ACTION" in text.upper():
+        upper_text = text.upper()
+        if "STEP" in upper_text or "EXECUTOR ACTION" in upper_text or "IDLE" in upper_text or "FINALIZE" in upper_text:
             self.header.set_doing(text)
 
         if api_calls > 0:
@@ -75,8 +76,14 @@ class Dashboard:
             if callback:
                 callback(text)
         self.command_bar.on_submit = wrapped
+        self.command_bar.on_remove_attachment = self._clear_recorded_data
 
     # ── Internal ──────────────────────────────────────────────────────────────
+
+    def _clear_recorded_data(self):
+        from FI_NEURAL_LINK.tools.automation.recorder import clear_recording
+        clear_recording()
+        self.log("Active recording cleared.", "info")
 
     def _check_for_timer(self, text: str):
         import re
@@ -111,7 +118,8 @@ class Dashboard:
             res = stop_recording()
             if res.get("ok"):
                 self.header.rec_btn.config(text="REC", fg=CYBER_PINK, bg=CYBER_BLACK)
-                self.log(f"Recording stopped. Captured {len(res.get('events', []))} events.", "success")
-                # In a real app, we might do something with the events here
+                count = len(res.get('events', []))
+                self.log(f"Recording stopped. Captured {count} events.", "success")
+                self.command_bar.show_attachment(f"ACTIVE RECORDING: {count} ACTIONS CAPTURED")
             else:
                 self.log(f"Failed to stop recording: {res.get('result')}", "error")
