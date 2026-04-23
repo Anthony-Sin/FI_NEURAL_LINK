@@ -27,7 +27,7 @@ class HeaderPanel(tk.Frame):
 
         self.status_label = tk.Label(
             self.status_row,
-            text="IDLE 0",
+            text="IDLE",
             bg=CYBER_BLACK,
             fg=CYBER_WHITE,
             font=("Consolas", 14, "bold"),
@@ -35,16 +35,23 @@ class HeaderPanel(tk.Frame):
         )
         self.status_label.pack(side="left")
 
+        # Record button moved to header
+        self.rec_btn = tk.Label(
+            self.status_row, text="REC", bg=CYBER_BLACK, fg=CYBER_PINK,
+            font=("Consolas", 10, "bold"), cursor="hand2",
+            padx=5
+        )
+        self.rec_btn.pack(side="left", padx=10)
+
         self.metric_label = tk.Label(
             self.status_row,
-            text="00.0",
+            text="0",
             bg=CYBER_BLACK,
             fg=CYBER_WHITE,
             font=("Consolas", 14, "bold"),
             anchor="e"
         )
         self.metric_label.pack(side="right")
-        self._update_metric()
 
         # ── Single row: FI INITIALIZED. on left │ — ✕ on right ───────────────
         self.ctrl_row = tk.Frame(self, bg=CYBER_BLACK)
@@ -82,25 +89,24 @@ class HeaderPanel(tk.Frame):
         x1 = (percent / 100.0) * w
         self.progress_canvas.coords(self.progress_bar, 0, 0, x1, 1)
 
-    def set_doing(self, text: str, retry_count: int = 0):
+    def set_doing(self, text: str):
         """Sets the current doing status with context awareness."""
         clean = text.strip().upper()
-        suffix = f" {retry_count}" if retry_count > 0 else " 0"
 
         if "NAVIGAT" in clean or "OPEN" in clean:
-            self.status_label.config(text="NAVIGATING" + suffix, fg="#00f0ff") # Blue
+            self.status_label.config(text="NAVIGATING", fg="#00f0ff") # Blue
         elif "TYPE" in clean or "WRITE" in clean:
-            self.status_label.config(text="TYPING" + suffix, fg="#fcee0a") # Yellow
+            self.status_label.config(text="TYPING", fg="#fcee0a") # Yellow
         elif "CLICK" in clean or "PRESS" in clean:
-            self.status_label.config(text="INTERACTING" + suffix, fg="#00ff88") # Green
+            self.status_label.config(text="INTERACTING", fg="#00ff88") # Green
         elif "WAIT" in clean or "SLEEP" in clean:
-            self.status_label.config(text="WAITING" + suffix, fg="#ffaa00") # Orange
+            self.status_label.config(text="WAITING", fg="#ffaa00") # Orange
         elif "ANALYZ" in clean or "VISION" in clean:
-            self.status_label.config(text="ANALYZING" + suffix, fg="#ff003c") # Pink
+            self.status_label.config(text="ANALYZING", fg="#ff003c") # Pink
         elif "IDLE" in clean:
-            self.status_label.config(text="IDLE" + suffix, fg="#ffffff")
+            self.status_label.config(text="IDLE", fg="#ffffff")
         else:
-            self.status_label.config(text="ACTIVE" + suffix, fg="#ffffff")
+            self.status_label.config(text="ACTIVE", fg="#ffffff")
 
     def start_timer(self, duration_seconds: int):
         self._duration = max(duration_seconds, 1)
@@ -108,15 +114,9 @@ class HeaderPanel(tk.Frame):
         self.set_doing("ACTIVE")
         self._tick()
 
-    def _update_metric(self):
-        """Updates the system metric (e.g. CPU usage) to make the HUD feel alive."""
-        try:
-            import psutil
-            cpu = psutil.cpu_percent()
-            self.metric_label.config(text=f"{cpu:04.1f}")
-        except:
-            pass
-        self.after(2000, self._update_metric)
+    def set_api_calls(self, count: int):
+        """Updates the API call metric."""
+        self.metric_label.config(text=str(count))
 
     def _tick(self):
         if self._remaining > 0:

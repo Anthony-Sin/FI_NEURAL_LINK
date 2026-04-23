@@ -12,6 +12,17 @@ from FI_NEURAL_LINK.core.config import get_model
 
 logger = logging.getLogger("AgentCore")
 
+def request_user_input(prompt_text: str) -> str:
+    """
+    Asks the user for input via the terminal as a fallback.
+    In a GUI environment, the Dashboard overrides this or provides a way to capture it.
+    """
+    print(f"\n[USER INTERVENTION REQUIRED]: {prompt_text}")
+    try:
+        return input("> ")
+    except EOFError:
+        return "exit"
+
 def generate_response(system_prompt: str, user_message: str, image_data: bytes = None, model_name: str = None) -> str:
     """
     Connects to the Google Gemini API and returns the model's text response.
