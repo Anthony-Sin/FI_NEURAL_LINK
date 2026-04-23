@@ -65,6 +65,14 @@ class CommandBar(tk.Frame):
         )
         self.mic_btn.pack(side="left", padx=(8, 4))
 
+        # Record button
+        self.rec_btn = tk.Label(
+            self.row, text="REC", bg=CYBER_BLACK, fg=CYBER_PINK,
+            font=("Consolas", 9, "bold"), cursor="hand2",
+            padx=5, pady=2, relief="flat"
+        )
+        self.rec_btn.pack(side="left", padx=(0, 5))
+
         # Bolt / submit button
         self.bolt_btn = tk.Label(
             self.row, text="⚡", bg=CYBER_BLACK, fg=CYBER_YELLOW,
