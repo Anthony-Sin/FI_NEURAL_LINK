@@ -84,6 +84,26 @@ class ActionRecorder:
             "events": self.events
         }
 
+    def get_event_summary(self):
+        """Returns a natural language summary of events for the LLM."""
+        if not self.events: return "No events recorded."
+
+        summary = []
+        for e in self.events:
+            if e["type"] == "click":
+                el = e.get("element")
+                if el:
+                    summary.append(f"Clicked {el['control_type']} '{el['name']}' in {el['window_title']}")
+                else:
+                    summary.append(f"Clicked coordinates ({e['x']}, {e['y']})")
+            elif e["type"] == "keypress":
+                summary.append(f"Pressed key: {e['key']}")
+        return "\n".join(summary)
+
+    def clear(self):
+        self.events = []
+        return {"ok": True, "result": "Recording cleared"}
+
     def get_as_function_calls(self):
         """Converts raw events into a list of ToolRouter-compatible function calls."""
         calls = []
@@ -150,3 +170,9 @@ def stop_recording():
 
 def get_recorded_calls():
     return recorder_instance.get_as_function_calls()
+
+def get_recorded_summary():
+    return recorder_instance.get_event_summary()
+
+def clear_recording():
+    return recorder_instance.clear()

@@ -65,6 +65,24 @@ class CommandBar(tk.Frame):
         )
         self.mic_btn.pack(side="left", padx=(8, 4))
 
+        # Attachment card for long text/recording (Cyberpunk style)
+        self.attachment_card = tk.Frame(self, bg="#1a1a00", padx=10, pady=10)
+        self.attachment_card.pack(fill="x", padx=10, pady=5)
+        self.attachment_card.pack_forget()
+
+        self.card_label = tk.Label(
+            self.attachment_card, text="", bg="#1a1a00", fg=CYBER_WHITE,
+            font=("Consolas", 8), justify="left", anchor="w", wraplength=200
+        )
+        self.card_label.pack(side="left", fill="x", expand=True)
+
+        self.remove_btn = tk.Label(
+            self.attachment_card, text="REMOVE", bg="#1a1a00", fg=CYBER_PINK,
+            font=("Consolas", 8, "bold"), cursor="hand2", padx=5
+        )
+        self.remove_btn.pack(side="right")
+        self.remove_btn.bind("<Button-1>", self._remove_attachment)
+
         # Bolt / submit button
         self.bolt_btn = tk.Label(
             self.row, text="⚡", bg=CYBER_BLACK, fg=CYBER_YELLOW,
@@ -110,15 +128,11 @@ class CommandBar(tk.Frame):
             self.entry.config(height=new_height)
         except: pass
 
-        # 2. Handle large input (> 100 words)
+        # 2. Handle large input (> 100 words) -> show card
         if len(words) > 100:
-            if not self.file_icon.winfo_ismapped():
-                self.entry.pack_forget()
-                self.file_icon.pack(side="left", padx=5, fill="both", expand=True)
-        else:
-            if self.file_icon.winfo_ismapped():
-                self.file_icon.pack_forget()
-                self.entry.pack(fill="x", expand=True)
+            self.show_attachment(f"LONG TEXT: {words[0]}... {words[-1]}")
+        elif not getattr(self, '_recording_active', False):
+            self.attachment_card.pack_forget()
 
         if content.strip():
             self._suggestion = content.upper().split('\n')[0] + " SYNC"
@@ -149,6 +163,17 @@ class CommandBar(tk.Frame):
             self._history_idx = -1
             self._on_blur(None)
         return "break"
+
+    def show_attachment(self, text):
+        self.card_label.config(text=text)
+        self.attachment_card.pack(fill="x", padx=10, pady=5, before=self.top_line)
+        self._recording_active = "RECORDING" in text
+
+    def _remove_attachment(self, e):
+        self.attachment_card.pack_forget()
+        self._recording_active = False
+        if hasattr(self, 'on_remove_attachment'):
+            self.on_remove_attachment()
 
     def _handle_submit(self, e):
         # Shift+Enter for new line, Enter for submit
