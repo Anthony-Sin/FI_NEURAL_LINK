@@ -30,6 +30,7 @@ class ToolRouter:
             "hotkey": mouse_keyboard.hotkey,
             "move_to": mouse_keyboard.move_to,
             "scroll": mouse_keyboard.scroll,
+            "drag_and_drop": mouse_keyboard.drag_and_drop,
             "open_url": launcher.open_url,
             "launch_app": launcher.launch_app,
             "kill_process": launcher.kill_process,

@@ -40,7 +40,7 @@ class Dashboard:
             submit_callback=self._handle_voice_submit
         )
         self.command_bar.mic_btn.bind("<Button-1>", lambda e: self.voice.start_listening())
-        self.command_bar.rec_btn.bind("<Button-1>", lambda e: self._toggle_recording())
+        self.header.rec_btn.bind("<Button-1>", lambda e: self._toggle_recording())
 
         # Wire window controls
         self.header.min_btn.bind("<Button-1>", lambda e: self.root.minimize())
@@ -53,10 +53,13 @@ class Dashboard:
     def start(self):
         threading.Thread(target=self.root.mainloop, daemon=True).start()
 
-    def log(self, text: str, level: str = "info", retry_count: int = 0):
+    def log(self, text: str, level: str = "info", retry_count: int = 0, api_calls: int = 0):
         self.middle.add_log(text, level)
         if "STEP" in text.upper() or "EXECUTOR ACTION" in text.upper():
-            self.header.set_doing(text, retry_count=retry_count)
+            self.header.set_doing(text)
+
+        if api_calls > 0:
+            self.header.set_api_calls(api_calls)
 
         # Auto-trigger timer from logs (e.g., "Waited for 5 seconds")
         import re
@@ -97,17 +100,17 @@ class Dashboard:
             self.command_bar.on_submit(text)
 
     def _toggle_recording(self):
-        if self.command_bar.rec_btn.cget("text") == "REC":
+        if self.header.rec_btn.cget("text") == "REC":
             res = start_recording()
             if res.get("ok"):
-                self.command_bar.rec_btn.config(text="STOP", fg=CYBER_WHITE, bg=CYBER_PINK)
+                self.header.rec_btn.config(text="STOP", fg=CYBER_WHITE, bg=CYBER_PINK)
                 self.log("Recording user actions...", "warning")
             else:
                 self.log(f"Failed to start recording: {res.get('result')}", "error")
         else:
             res = stop_recording()
             if res.get("ok"):
-                self.command_bar.rec_btn.config(text="REC", fg=CYBER_PINK, bg=CYBER_BLACK)
+                self.header.rec_btn.config(text="REC", fg=CYBER_PINK, bg=CYBER_BLACK)
                 self.log(f"Recording stopped. Captured {len(res.get('events', []))} events.", "success")
                 # In a real app, we might do something with the events here
             else:

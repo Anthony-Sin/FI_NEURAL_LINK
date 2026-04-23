@@ -67,6 +67,49 @@ class ActionRecorder:
             "events": self.events
         }
 
+    def get_as_function_calls(self):
+        """Converts raw events into a list of ToolRouter-compatible function calls."""
+        calls = []
+        last_time = 0
+
+        # We group keypresses into 'type_text' for efficiency if they are close in time
+        typing_buffer = []
+
+        for event in self.events:
+            wait_time = event["time"] - last_time
+            if wait_time > 0.1:
+                # Flush typing buffer
+                if typing_buffer:
+                    calls.append({"name": "type_text", "args": {"text": "".join(typing_buffer)}})
+                    typing_buffer = []
+
+                # Add wait if significant
+                if wait_time > 0.5:
+                    calls.append({"name": "wait", "args": {"seconds": round(wait_time, 1)}})
+
+            if event["type"] == "click":
+                calls.append({"name": "click", "args": {"x": event["x"], "y": event["y"]}})
+            elif event["type"] == "keypress":
+                key = event["key"]
+                if len(key) == 1:
+                    typing_buffer.append(key)
+                else:
+                    # Special key like Key.enter
+                    if typing_buffer:
+                        calls.append({"name": "type_text", "args": {"text": "".join(typing_buffer)}})
+                        typing_buffer = []
+
+                    # Convert pynput key name to pyautogui key name
+                    clean_key = key.replace("Key.", "")
+                    calls.append({"name": "press_key", "args": {"key": clean_key}})
+
+            last_time = event["time"]
+
+        if typing_buffer:
+            calls.append({"name": "type_text", "args": {"text": "".join(typing_buffer)}})
+
+        return calls
+
 recorder_instance = ActionRecorder()
 
 def start_recording():
@@ -74,3 +117,6 @@ def start_recording():
 
 def stop_recording():
     return recorder_instance.stop()
+
+def get_recorded_calls():
+    return recorder_instance.get_as_function_calls()

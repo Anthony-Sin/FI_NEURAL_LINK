@@ -65,14 +65,6 @@ class CommandBar(tk.Frame):
         )
         self.mic_btn.pack(side="left", padx=(8, 4))
 
-        # Record button
-        self.rec_btn = tk.Label(
-            self.row, text="REC", bg=CYBER_BLACK, fg=CYBER_PINK,
-            font=("Consolas", 9, "bold"), cursor="hand2",
-            padx=5, pady=2, relief="flat"
-        )
-        self.rec_btn.pack(side="left", padx=(0, 5))
-
         # Bolt / submit button
         self.bolt_btn = tk.Label(
             self.row, text="⚡", bg=CYBER_BLACK, fg=CYBER_YELLOW,
@@ -109,10 +101,12 @@ class CommandBar(tk.Frame):
         content = self.entry.get("1.0", "end-1c")
         words = content.split()
 
-        # 1. Handle dynamic height
+        # 1. Handle dynamic height (expanding upwards)
         try:
-            num_lines = int(self.entry.index('end-1c').split('.')[0])
-            new_height = min(max(num_lines, 1), 5)
+            # Measure text height
+            self.entry.update_idletasks()
+            line_count = int(self.entry.index('end-1c').split('.')[0])
+            new_height = min(max(line_count, 1), 5)
             self.entry.config(height=new_height)
         except: pass
 

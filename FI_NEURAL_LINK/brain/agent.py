@@ -273,9 +273,10 @@ class DashboardLogHandler(logging.Handler):
             msg = self.format(record)
             level = record.levelname.lower()
             retry_count = getattr(record, 'retry_count', 0)
-            # Support passing retry_count to callback if it supports it
+            api_calls = getattr(record, 'api_calls', 0)
+            # Support passing extra data to callback if it supports it
             try:
-                self.callback(msg, level, retry_count=retry_count)
+                self.callback(msg, level, retry_count=retry_count, api_calls=api_calls)
             except TypeError:
                 self.callback(msg, level)
         except Exception:
@@ -295,6 +296,7 @@ class AgentCore:
         self._is_busy = False
         self.error_retry_count = 0
         self.max_error_retries = 3
+        self.total_api_calls = 0
         """
         Initializes the AgentCore.
         """
@@ -345,9 +347,12 @@ class AgentCore:
             "critical": logging.CRITICAL,
         }
 
-        # We want to pass retry_count if possible, but logging.log doesn't support it directly.
+        # We want to pass extra info if possible, but logging.log doesn't support it directly.
         # The DashboardLogHandler will handle it if we add it to the record.
-        self.logger.log(level_map.get(level.lower(), logging.INFO), text, extra={'retry_count': self.error_retry_count})
+        self.logger.log(level_map.get(level.lower(), logging.INFO), text, extra={
+            'retry_count': self.error_retry_count,
+            'api_calls': getattr(self, 'total_api_calls', 0)
+        })
 
     # ── Goal Execution ──────────────────────────────────────────────────────
 
@@ -356,6 +361,7 @@ class AgentCore:
         Routes a goal and executes it using the RouterBrain/ExecutorAgent architecture.
         """
         self.error_retry_count = 0
+        self.total_api_calls = 0
         if self._is_busy:
             self.log("AGENT IS CURRENTLY BUSY. QUEUEING REJECTED.", "warning")
             return []
@@ -386,6 +392,7 @@ class AgentCore:
 
         try:
             cache_block = self.cache_mgr.get_cache_block()
+            self.total_api_calls += 1
             raw_decision = route_goal(goal, cache_block=cache_block)
             self.log(f"RAW ROUTER RESPONSE: {raw_decision}", "debug")
             decision = parse_decision(raw_decision)
@@ -406,6 +413,8 @@ class AgentCore:
         elif decision.get("task_type") == "long":
             # Hand off to long task without nesting another busy check
             return self._perform_long_task(decision)
+        elif decision.get("task_type") == "replay_recording":
+            return self._perform_recording_replay(decision)
         else:
             self.log(f"Unknown decision format: {json.dumps(decision)}", "error")
             return []
@@ -500,6 +509,7 @@ class AgentCore:
         try:
             while not STOP_EVENT.is_set():
                 # 1. GENERATE NEXT STEP (Act)
+                self.total_api_calls += 1
                 executor_output = self._call_executor(continuation)
 
                 if executor_output.get("status") == "terminated":
@@ -581,6 +591,32 @@ class AgentCore:
     def _call_executor(self, continuation: dict) -> dict:
         """Calls the Gemini model with strict observation cost hierarchy."""
         return parse_llm_json(self._raw_call_executor(continuation))
+
+    def _perform_recording_replay(self, decision: dict) -> list:
+        """Replays a captured user recording X times."""
+        from FI_NEURAL_LINK.tools.automation.recorder import get_recorded_calls
+        recorded_calls = get_recorded_calls()
+
+        if not recorded_calls:
+            self.log("No recording found to replay.", "error")
+            return []
+
+        repeat_count = decision.get("repeat_count", 1)
+        self.log(f"Replaying recording {repeat_count} times.")
+
+        all_results = []
+        for i in range(repeat_count):
+            if STOP_EVENT.is_set(): break
+            self.log(f"Starting iteration {i+1}/{repeat_count}")
+            # Execute the recording as a short task (sequence of calls)
+            res = self._perform_short_task({"text": f"Iteration {i+1}", "function_calls": recorded_calls})
+            all_results.extend(res)
+
+            if any(r["status"] == "failed" for r in res):
+                self.log(f"Recording failed at iteration {i+1}. Stopping.", "error")
+                break
+
+        return all_results
 
     def _raw_call_executor(self, continuation: dict) -> str:
         """Calls the Gemini model and returns the raw response string."""
