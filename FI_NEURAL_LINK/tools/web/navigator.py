@@ -9,7 +9,7 @@ from ...brain.memory import FailureMemory
 from FI_NEURAL_LINK.core.config import get_model
 from FI_NEURAL_LINK.ui.panels.stop_panel import STOP_EVENT
 
-def smart_web_action(url_domain: str, instruction: str, expected_title_re: str = ".*") -> dict:
+def smart_web_action(url_domain: str = None, instruction: str = "", expected_title_re: str = ".*") -> dict:
     """
     Implements a robust act->observe->decide pipeline for web actions.
     Uses UI Automation to extract live DOM and preserves user session.
@@ -21,6 +21,11 @@ def smart_web_action(url_domain: str, instruction: str, expected_title_re: str =
     max_attempts = 3
     last_error = ""
     failure_mem = FailureMemory()
+
+    # If no domain provided, try to find any browser window
+    if not url_domain:
+        url_domain = "Browser"
+
     for attempt in range(1, max_attempts + 1):
         if STOP_EVENT.is_set():
             return {"ok": False, "result": "Halted by STOP_EVENT"}
