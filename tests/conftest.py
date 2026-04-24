@@ -13,6 +13,13 @@ def mock_gui_libs(monkeypatch):
     monkeypatch.setitem(sys.modules, "pywinauto", mock_pwa)
     monkeypatch.setitem(sys.modules, "mss", mock_mss)
 
+    # Mock google.generativeai
+    mock_genai = MagicMock()
+    monkeypatch.setitem(sys.modules, "google", MagicMock())
+    monkeypatch.setitem(sys.modules, "google.generativeai", mock_genai)
+    monkeypatch.setitem(sys.modules, "google.api_core", MagicMock())
+    monkeypatch.setitem(sys.modules, "google.api_core.exceptions", MagicMock())
+
     return mock_pa, mock_pwa, mock_mss
 
 @pytest.fixture

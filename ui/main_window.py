@@ -110,7 +110,7 @@ class Dashboard:
         if self.header.rec_btn.cget("text") == "REC":
             res = start_recording()
             if res.get("ok"):
-                self.header.rec_btn.config(text="STOP", fg=CYBER_PINK, bg=CYBER_PINK)
+                self.header.rec_btn.config(text="STOP", fg=CYBER_BLACK, bg=CYBER_PINK)
                 self.log("Recording user actions...", "warning")
             else:
                 self.log(f"Failed to start recording: {res.get('result')}", "error")

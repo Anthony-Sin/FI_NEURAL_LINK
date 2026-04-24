@@ -99,10 +99,10 @@ class ActionRecorder:
         for e in self.events:
             if e["type"] == "click":
                 el = e.get("element")
+                msg = f"Clicked at ({e['x']}, {e['y']})"
                 if el:
-                    summary.append(f"Clicked {el['control_type']} '{el['name']}' in {el['window_title']}")
-                else:
-                    summary.append(f"Clicked coordinates ({e['x']}, {e['y']})")
+                    msg += f" (Target: {el['control_type']} '{el['name']}' in {el['window_title']})"
+                summary.append(msg)
             elif e["type"] == "keypress":
                 summary.append(f"Pressed key: {e['key']}")
         return "\n".join(summary)
@@ -132,20 +132,9 @@ class ActionRecorder:
                     calls.append({"name": "wait", "args": {"seconds": round(wait_time, 1)}})
 
             if event["type"] == "click":
-                element = event.get("element")
-                if element and (element.get("name") or element.get("auto_id")):
-                    # Prefer UI Automation if we have element info
-                    identifier = element.get("auto_id") or element.get("name")
-                    calls.append({
-                        "name": "click_element",
-                        "args": {
-                            "window_title": element["window_title"],
-                            "control_title": identifier
-                        }
-                    })
-                else:
-                    # Fallback to coordinates
-                    calls.append({"name": "click", "args": {"x": event["x"], "y": event["y"]}})
+                # Per user instruction: use exact screen coordinates for all clicks
+                # This ensures input focus is correctly placed where the human actually clicked.
+                calls.append({"name": "click", "args": {"x": event["x"], "y": event["y"]}})
             elif event["type"] == "keypress":
                 key = event["key"]
                 if len(key) == 1:

@@ -396,7 +396,12 @@ class AgentCore:
         if recorder_instance.events:
             summary = get_recorded_summary()
             context.append("- Active Recording detected.")
-            context.append(f"- Recorded Actions Summary:\n{summary}")
+            context.append(f"- Recorded Actions Summary (Use these exact coordinates for focus):\n{summary}")
+
+            # Logic to help model focus: if last recorded action was a click on an Edit field,
+            # and current goal is 'this time type X', we should explicitly suggest clicking those coordinates.
+            # This is handled by the model seeing the summary, but we add a hint.
+            context.append("\nFOCUS HINT: If replaying/varying a recording, ALWAYS use 'click(x, y)' on the same coordinates where the original click occurred to ensure input focus.")
 
         return "\n".join(context)
 
