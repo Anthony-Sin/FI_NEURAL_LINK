@@ -391,15 +391,31 @@ class AgentCore:
         except:
             context.append("- Active Window: Unknown")
 
-        # 2. Recording Status
+        # 2. Recording Status — only if a recording actually exists
         from tools.automation.recorder import recorder_instance
         if recorder_instance.events:
+            import re
             summary = get_recorded_summary()
+
+            # Normalize contenteditable/group clicks — inject explicit focus + type steps
+            # so the model knows to steal focus from tk before typing
+            summary = re.sub(
+                r"(Clicked (?:Edit|Group) '[￼\s]*' in (.+?))\n([\s\S]*)",
+                lambda m: (
+                    f"USE_EXACTLY: click_element(window_title='{m.group(2).strip()}', control_title='') "
+                    f"THEN wait(seconds=1) THEN type_text(text=<new_text>)\n"
+                    f"REMAINING_ACTIONS:\n{m.group(3)}"
+                ),
+                summary
+            )
+            # Strip actions that happened in the agent's own tk window —
+            # these are interactions with the agent UI itself, not the target app
+            summary = re.sub(r".*\bin tk\b.*\n?", "", summary)
+
             context.append("- Active Recording detected.")
             context.append(f"- Recorded Actions Summary:\n{summary}")
 
         return "\n".join(context)
-
     def _perform_goal(self, goal: str) -> list:
         self.current_goal = goal # Store for retries
         self.log(f"Routing goal: {goal}")

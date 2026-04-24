@@ -47,6 +47,7 @@ class ToolRouter:
             "read_screen": vision.read_screen,
             "analyze_screen": vision.analyze_screen,
             "execute_command": terminal.execute_command
+
         }
 
     def execute(self, action: str, params: dict) -> dict:

@@ -186,3 +186,4 @@ def get_recorded_domain():
 
 def clear_recording():
     return recorder_instance.clear()
+
