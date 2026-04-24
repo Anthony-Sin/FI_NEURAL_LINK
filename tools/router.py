@@ -8,9 +8,12 @@ from tools.automation import windows_control
 from tools.system import launcher, terminal
 from tools.web import navigator, scraper
 from tools.vision import agent_vision as vision
+import logging
 from tools.security.rate_limiter import RateLimiter
 from ui.panels.stop_panel import STOP_EVENT
 from core.config import load_config
+
+logger = logging.getLogger("AgentCore")
 
 class ToolRouter:
     def __init__(self):
@@ -50,7 +53,9 @@ class ToolRouter:
         """
         Executes the specified action with the provided parameters if rate limits allow and STOP_EVENT is not set.
         """
+        logger.debug(f"ToolRouter: executing {action} with params {params}")
         if STOP_EVENT.is_set():
+            logger.warning("ToolRouter: execution halted by STOP_EVENT")
             return {"ok": False, "result": "Halted by STOP_EVENT"}
 
         if not self.limiter.is_allowed():
