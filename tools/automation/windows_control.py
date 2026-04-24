@@ -138,19 +138,19 @@ def _get_window(window_title_re: str):
     return None
 
 def click_element(window_title: str, control_title: str) -> Dict[str, Union[bool, str]]:
+    """
+    Find a window by title and click a control within it using multiple discovery strategies.
+    """
     if STOP_EVENT.is_set():
         return {"ok": False, "result": "Halted by STOP_EVENT"}
     try:
+        # Be loose with window matching
         win_obj = _get_window(f".*{window_title}.*")
         if not win_obj:
-            return {"ok": False, "result": f"Could not find window matching '{window_title}'"}
+             return {"ok": False, "result": f"Could not find window matching '{window_title}'"}
 
         win = _resolve_win(win_obj)
         win.set_focus()
-
-        # If no control title, just focusing the window was the goal
-        if not control_title or not control_title.strip():
-            return {"ok": True, "result": f"Focused window '{window_title}'"}
 
         ctrl = _find_element(win, control_title, ["Button", "Hyperlink", "Text", "MenuItem"])
         if ctrl:
@@ -160,7 +160,7 @@ def click_element(window_title: str, control_title: str) -> Dict[str, Union[bool
         return {"ok": False, "result": f"Could not find element '{control_title}' in '{window_title}'"}
     except Exception as e:
         return {"ok": False, "result": str(e)}
-    
+
 def type_in_element(window_title: str, control_title: str, text: str, enter: bool = False) -> Dict[str, Union[bool, str]]:
     """
     Find a window by title and type text into a control within it using multiple discovery strategies.
@@ -273,5 +273,41 @@ def get_window_elements(window_title_re: str) -> dict:
             "title": win.window_text(),
             "elements": elements
         }
+    except Exception as e:
+        return {"ok": False, "result": str(e)}
+
+def wait_for_idle(window_title: str, timeout: int = 15, stability_window: float = 2.0) -> Dict[str, Union[bool, str]]:
+    """
+    Waits for a window's UI structure to become stable.
+    Returns success when the element count stays the same for 'stability_window' seconds.
+    """
+    if STOP_EVENT.is_set():
+        return {"ok": False, "result": "Halted by STOP_EVENT"}
+
+    try:
+        start_time = time.time()
+        last_count = -1
+        last_change_time = time.time()
+
+        while time.time() - start_time < timeout:
+            if STOP_EVENT.is_set(): break
+
+            res = get_window_elements(window_title)
+            if not res.get("ok"):
+                time.sleep(0.5)
+                continue
+
+            current_count = len(res.get("elements", []))
+
+            if current_count != last_count:
+                last_count = current_count
+                last_change_time = time.time()
+            elif time.time() - last_change_time >= stability_window:
+                # Stable!
+                return {"ok": True, "result": f"UI stabilized with {current_count} elements."}
+
+            time.sleep(0.5)
+
+        return {"ok": True, "result": f"Wait for idle timed out after {timeout}s (proceeding anyway)."}
     except Exception as e:
         return {"ok": False, "result": str(e)}

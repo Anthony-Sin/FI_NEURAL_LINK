@@ -357,13 +357,16 @@ class AgentCore:
 
     # ── Goal Execution ──────────────────────────────────────────────────────
 
-    def run_goal(self, goal: str) -> list:
+    def run_goal(self, goal: str, extra_context: dict = None) -> list:
         """
         Routes a goal and executes it using the RouterBrain/ExecutorAgent architecture.
         """
         self.log("="*60, "debug")
         self.log(f"NEW GOAL RECEIVED: {goal.upper()}")
+        if extra_context:
+            self.log(f"EXTRA CONTEXT: {list(extra_context.keys())}", "debug")
         self.log("="*60, "debug")
+
         self.error_retry_count = 0
         self.total_api_calls = 0
         if self._is_busy:
@@ -372,14 +375,14 @@ class AgentCore:
 
         self._is_busy = True
         try:
-            res = self._perform_goal(goal)
+            res = self._perform_goal(goal, extra_context=extra_context)
             self.log("Goal execution finalized. Returning to IDLE.")
             return res
         finally:
             self._is_busy = False
             self.log("IDLE", "debug")
 
-    def _get_context_block(self) -> str:
+    def _get_context_block(self, extra_context: dict = None) -> str:
         """Constructs a context block describing the current system state."""
         context = ["CURRENT SYSTEM CONTEXT:"]
 
@@ -391,27 +394,10 @@ class AgentCore:
         except:
             context.append("- Active Window: Unknown")
 
-        # 2. Recording Status — only if a recording actually exists
+        # 2. Recording Status
         from tools.automation.recorder import recorder_instance
         if recorder_instance.events:
-            import re
             summary = get_recorded_summary()
-
-            # Normalize contenteditable/group clicks — inject explicit focus + type steps
-            # so the model knows to steal focus from tk before typing
-            summary = re.sub(
-                r"Clicked (?:Edit|Group) '[￼\s]*' at \((\d+), (\d+)\) in (.+?)\n([\s\S]*)",
-                lambda m: (
-                    f"USE_EXACTLY: click(x={m.group(1)}, y={m.group(2)}) "
-                    f"THEN wait(seconds=1) THEN type_text(text=<new_text>)\n"
-                    f"REMAINING_ACTIONS:\n{m.group(4)}"
-                ),
-                summary
-            )
-            # Strip actions that happened in the agent's own tk window —
-            # these are interactions with the agent UI itself, not the target app
-            summary = re.sub(r".*\bin tk\b.*\n?", "", summary)
-
             context.append("- Active Recording detected.")
             context.append(f"- Recorded Actions Summary (Use these exact coordinates for focus):\n{summary}")
 
@@ -420,14 +406,20 @@ class AgentCore:
             # This is handled by the model seeing the summary, but we add a hint.
             context.append("\nFOCUS HINT: If replaying/varying a recording, ALWAYS use 'click(x, y)' on the same coordinates where the original click occurred to ensure input focus.")
 
+        # 3. Extra Data
+        if extra_context:
+            for key, val in extra_context.items():
+                context.append(f"- Attached Data ({key}):\n{val}")
+
         return "\n".join(context)
-    def _perform_goal(self, goal: str) -> list:
+
+    def _perform_goal(self, goal: str, extra_context: dict = None) -> list:
         self.current_goal = goal # Store for retries
         self.log(f"Routing goal: {goal}")
         self.loop_guard.reset()
 
         # 0. Construct context for the Router
-        context_block = self._get_context_block()
+        context_block = self._get_context_block(extra_context=extra_context)
         self.logger.debug(f"ROUTING CONTEXT:\n{context_block}")
 
         # 1. Check cache first
@@ -446,8 +438,12 @@ class AgentCore:
         try:
             cache_block = self.cache_mgr.get_cache_block()
             self.total_api_calls += 1
-            # Pass context_block to route_goal
-            raw_decision = route_goal(goal, cache_block=cache_block, context_block=context_block)
+
+            # Extract task mode preference if available
+            task_mode = extra_context.get('task_mode', 'AUTO') if extra_context else 'AUTO'
+
+            # Pass context_block and mode to route_goal
+            raw_decision = route_goal(goal, cache_block=cache_block, context_block=context_block, task_mode=task_mode)
             self.log(f"RAW ROUTER RESPONSE: {raw_decision}", "debug")
             decision = parse_decision(raw_decision)
         except Exception as e:
@@ -545,13 +541,28 @@ class AgentCore:
         finally:
             self._is_busy = False
 
+    def _get_page_fingerprint(self, ui_target: str) -> str:
+        """Generates a lightweight fingerprint of the current page/window state."""
+        try:
+            from tools.automation import windows_control
+            res = windows_control.get_window_elements(ui_target)
+            if res.get("ok"):
+                elements = res.get("elements", [])
+                # Fingerprint based on title and element count/types
+                fingerprint = f"{res.get('title')}|{len(elements)}|"
+                types = ",".join(sorted(list(set(el["type"] for el in elements))))
+                return fingerprint + types
+        except: pass
+        return "unknown"
+
     def _perform_long_task(self, handoff: dict) -> list:
         """Executes a long task using the strict iterative ExecutorAgent loop."""
         self.log(f"Long Task detected. Handing off to Executor loop.")
 
+        ui_target = handoff.get("ui_target")
         continuation = {
             "goal": handoff.get("goal"),
-            "ui_target": handoff.get("ui_target"),
+            "ui_target": ui_target,
             "remaining_queue": handoff.get("iterable_payload", []),
             "parameters": handoff.get("parameters", {}),
             "last_action_result": None,
@@ -560,8 +571,17 @@ class AgentCore:
         }
 
         results = []
+        last_fingerprint = None
         try:
             while not STOP_EVENT.is_set():
+                # 0. Fingerprint check to avoid redundant observations
+                current_fp = self._get_page_fingerprint(ui_target)
+                if last_fingerprint and current_fp == last_fingerprint:
+                    self.log("Page fingerprint stable. Skipping observation.", "debug")
+                    continuation["status"] = "stable_ui"
+                else:
+                    last_fingerprint = current_fp
+
                 # 1. GENERATE NEXT STEP (Act)
                 self.total_api_calls += 1
                 executor_output = self._call_executor(continuation)
@@ -693,7 +713,9 @@ class AgentCore:
 
     def _raw_call_executor(self, continuation: dict) -> str:
         """Calls the Gemini model and returns the raw response string."""
-        is_resume = continuation.get("status") == "resuming"
+        status = continuation.get("status")
+        is_resume = status == "resuming"
+        is_stable = status == "stable_ui"
 
         recording_context = ""
         params = continuation.get("parameters", {})
@@ -721,7 +743,7 @@ class AgentCore:
             "- Unexpected modal: attempt to dismiss via click_element or click, re-verify with screenshot."
         )
 
-        if not is_resume:
+        if not is_resume and not is_stable:
             system_prompt = (
                 "You are an Executor Agent starting a new task.\n"
                 "Goal: {goal}\n"
@@ -732,6 +754,7 @@ class AgentCore:
                 "To navigate to a page, use 'launch_app' with 'args' or 'open_url'.\n\n"
                 "{obs_cost}\n\n"
                 "{ui_state}\n\n"
+                "SCHEDULED TASKS: If the goal is recurring (e.g., 'every X seconds'), perform the current action and then update the continuation with a 'wait' item or next iteration metadata.\n\n"
                 "Return a JSON with: 'description', 'function_call': {{'name', 'args'}}, 'continuation_update': {{}}.\n"
                 "If finished, return {{'status': 'terminated'}}."
             ).format(
@@ -744,13 +767,18 @@ class AgentCore:
             )
             user_message = "Begin task."
         else:
+            if is_stable:
+                prefix = "STABLE UI DETECTED. The page has not changed since your last action. "
+            else:
+                prefix = "You are resuming an in-progress task. The continuation object below contains everything you need. "
+
             system_prompt = (
-                "You are resuming an in-progress task. The continuation object below contains everything you need. "
-                "Do not re-plan from scratch. Process the first item in the remaining queue, execute your loop, observe, "
+                "{prefix}"
+                "Do not re-plan from scratch. Process the first item in the remaining queue (or generate next recurring action), execute your loop, observe, "
                 "and either terminate or emit a new continuation.\n\n"
                 "{obs_cost}\n\n"
                 "{ui_state}"
-            ).format(obs_cost=obs_cost_instructions, ui_state=ui_state_handling)
+            ).format(prefix=prefix, obs_cost=obs_cost_instructions, ui_state=ui_state_handling)
             # Resumed invocations receive ONLY the continuation JSON
             user_message = json.dumps({
                 "remaining_queue": continuation["remaining_queue"],

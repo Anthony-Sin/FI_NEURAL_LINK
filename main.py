@@ -33,13 +33,13 @@ def main():
     agent = AgentCore(config, tool_router=tool_router, log_callback=dashboard.log)
 
     # 5. Define the submission handler
-    def handle_submit(goal):
+    def handle_submit(goal, extra_context=None):
         dashboard.log(f"Received goal: {goal}", "info")
 
         # Run the agent in a separate thread to keep the UI responsive
         def run_agent():
             try:
-                agent.run_goal(goal)
+                agent.run_goal(goal, extra_context=extra_context)
             except Exception as e:
                 dashboard.log(f"Agent error: {str(e)}", "error")
 
