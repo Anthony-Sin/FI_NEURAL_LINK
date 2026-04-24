@@ -100,7 +100,7 @@ class ActionRecorder:
             if e["type"] == "click":
                 el = e.get("element")
                 if el:
-                    summary.append(f"Clicked {el['control_type']} '{el['name']}' in {el['window_title']}")
+                    summary.append(f"Clicked {el['control_type']} '{el['name']}' at ({e['x']}, {e['y']}) in {el['window_title']}")
                 else:
                     summary.append(f"Clicked coordinates ({e['x']}, {e['y']})")
             elif e["type"] == "keypress":
@@ -132,20 +132,8 @@ class ActionRecorder:
                     calls.append({"name": "wait", "args": {"seconds": round(wait_time, 1)}})
 
             if event["type"] == "click":
-                element = event.get("element")
-                if element and (element.get("name") or element.get("auto_id")):
-                    # Prefer UI Automation if we have element info
-                    identifier = element.get("auto_id") or element.get("name")
-                    calls.append({
-                        "name": "click_element",
-                        "args": {
-                            "window_title": element["window_title"],
-                            "control_title": identifier
-                        }
-                    })
-                else:
-                    # Fallback to coordinates
-                    calls.append({"name": "click", "args": {"x": event["x"], "y": event["y"]}})
+                # Always use exact coordinates to ensure focus on specific input fields
+                calls.append({"name": "click", "args": {"x": event["x"], "y": event["y"]}})
             elif event["type"] == "keypress":
                 key = event["key"]
                 if len(key) == 1:

@@ -400,11 +400,11 @@ class AgentCore:
             # Normalize contenteditable/group clicks — inject explicit focus + type steps
             # so the model knows to steal focus from tk before typing
             summary = re.sub(
-                r"(Clicked (?:Edit|Group) '[￼\s]*' in (.+?))\n([\s\S]*)",
+                r"Clicked (?:Edit|Group) '[￼\s]*' at \((\d+), (\d+)\) in (.+?)\n([\s\S]*)",
                 lambda m: (
-                    f"USE_EXACTLY: click_element(window_title='{m.group(2).strip()}', control_title='') "
+                    f"USE_EXACTLY: click(x={m.group(1)}, y={m.group(2)}) "
                     f"THEN wait(seconds=1) THEN type_text(text=<new_text>)\n"
-                    f"REMAINING_ACTIONS:\n{m.group(3)}"
+                    f"REMAINING_ACTIONS:\n{m.group(4)}"
                 ),
                 summary
             )
