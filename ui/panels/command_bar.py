@@ -73,7 +73,7 @@ class CommandBar(tk.Frame):
         self.attachment_card.bind("<Button-1>", self._preview_attachment)
 
         self.card_label = tk.Label(
-            self.attachment_card, text="", bg="#1a1a00", fg=CYBER_WHITE,
+            self.attachment_card, text="", bg="#1a1a00", fg=CYBER_PINK,
             font=("Consolas", 8), justify="left", anchor="w", wraplength=200,
             cursor="hand2"
         )

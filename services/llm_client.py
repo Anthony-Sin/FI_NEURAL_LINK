@@ -53,6 +53,10 @@ def generate_response(system_prompt: str, user_message: str, image_data: bytes =
 
             # Log prompt for debugging
             logger.debug(f"--- GEMINI API CALL (Model: {model_name}, Attempt: {attempt+1}) ---")
+            logger.debug(f"SYSTEM PROMPT:\n{system_prompt}")
+            logger.debug(f"USER MESSAGE:\n{user_message}")
+            if image_data:
+                logger.debug("IMAGE DATA: [Image provided]")
 
             response = model.generate_content(content)
 
