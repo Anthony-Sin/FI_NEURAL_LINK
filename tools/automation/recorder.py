@@ -99,6 +99,7 @@ class ActionRecorder:
         for e in self.events:
             if e["type"] == "click":
                 el = e.get("element")
+                msg = f"Clicked at ({e['x']}, {e['y']})"
                 if el:
                     summary.append(f"Clicked {el['control_type']} '{el['name']}' at ({e['x']}, {e['y']}) in {el['window_title']}")
                 else:
