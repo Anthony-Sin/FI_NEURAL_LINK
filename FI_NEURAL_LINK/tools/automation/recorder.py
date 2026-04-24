@@ -84,6 +84,13 @@ class ActionRecorder:
             "events": self.events
         }
 
+    def get_recorded_domain(self):
+        """Returns the domain or window title of the first recorded web action."""
+        for e in self.events:
+            if e["type"] == "click" and e.get("element"):
+                return e["element"].get("window_title")
+        return None
+
     def get_event_summary(self):
         """Returns a natural language summary of events for the LLM."""
         if not self.events: return "No events recorded."
@@ -173,6 +180,9 @@ def get_recorded_calls():
 
 def get_recorded_summary():
     return recorder_instance.get_event_summary()
+
+def get_recorded_domain():
+    return recorder_instance.get_recorded_domain()
 
 def clear_recording():
     return recorder_instance.clear()

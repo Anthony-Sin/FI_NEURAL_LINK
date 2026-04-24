@@ -53,6 +53,7 @@ class CommandBar(tk.Frame):
         self.entry.bind("<FocusIn>",   self._on_focus)
         self.entry.bind("<FocusOut>",  self._on_blur)
         self.entry.bind("<KeyRelease>", self._on_key)
+        self.entry.bind("<Control-v>", self._handle_paste)
         self.entry.bind("<Return>",    self._handle_submit)
         self.entry.bind("<Tab>",       self._use_sugg)
         self.entry.bind("<Up>",        self._prev_cmd)
@@ -66,15 +67,18 @@ class CommandBar(tk.Frame):
         self.mic_btn.pack(side="left", padx=(8, 4))
 
         # Attachment card for long text/recording (Cyberpunk style)
-        self.attachment_card = tk.Frame(self, bg="#1a1a00", padx=10, pady=10)
+        self.attachment_card = tk.Frame(self, bg="#1a1a00", padx=10, pady=10, cursor="hand2")
         self.attachment_card.pack(fill="x", padx=10, pady=5)
         self.attachment_card.pack_forget()
+        self.attachment_card.bind("<Button-1>", self._preview_attachment)
 
         self.card_label = tk.Label(
             self.attachment_card, text="", bg="#1a1a00", fg=CYBER_WHITE,
-            font=("Consolas", 8), justify="left", anchor="w", wraplength=200
+            font=("Consolas", 8), justify="left", anchor="w", wraplength=200,
+            cursor="hand2"
         )
         self.card_label.pack(side="left", fill="x", expand=True)
+        self.card_label.bind("<Button-1>", self._preview_attachment)
 
         self.remove_btn = tk.Label(
             self.attachment_card, text="REMOVE", bg="#1a1a00", fg=CYBER_PINK,
@@ -116,23 +120,43 @@ class CommandBar(tk.Frame):
             self.entry.pack(fill="x", expand=True)
 
     def _on_key(self, e):
+        # Trigger height update on every keypress
+        self._update_height()
+
         content = self.entry.get("1.0", "end-1c")
         words = content.split()
 
-        # 1. Handle dynamic height (expanding upwards)
+        # Handle large input (> 100 words) -> show card
+        if len(words) > 100:
+            full_text = self.entry.get("1.0", tk.END).strip()
+            self.entry.delete("1.0", tk.END)
+            self.show_attachment(f"LONG TEXT: {words[0]}... {words[-1]}", full_content=full_text)
+        elif not getattr(self, '_recording_active', False) and not getattr(self, '_long_text_active', False):
+            self.attachment_card.pack_forget()
+
+        if content.strip():
+            self._suggestion = content.upper().split('\n')[0] + " SYNC"
+        else:
+            self._suggestion = ""
+
+    def _update_height(self):
+        """Measures text lines and updates widget height."""
         try:
-            # Measure text height
+            # Force update of internal geometry
             self.entry.update_idletasks()
-            line_count = int(self.entry.index('end-1c').split('.')[0])
-            new_height = min(max(line_count, 1), 5)
+            # Calculate height based on line count in the widget
+            # We look at the actual wrapped lines if possible, or just newlines
+            content = self.entry.get("1.0", "end-1c")
+            line_count = content.count('\n') + 1
+
+            # Simple check for wrapping: if width is small, we might have more lines
+            # For now, 1 line per 40 chars is a safe fallback
+            char_count = len(content)
+            est_lines = max(line_count, (char_count // 35) + 1)
+
+            new_height = min(max(est_lines, 1), 5)
             self.entry.config(height=new_height)
         except: pass
-
-        # 2. Handle large input (> 100 words) -> show card
-        if len(words) > 100:
-            self.show_attachment(f"LONG TEXT: {words[0]}... {words[-1]}")
-        elif not getattr(self, '_recording_active', False):
-            self.attachment_card.pack_forget()
 
         if content.strip():
             self._suggestion = content.upper().split('\n')[0] + " SYNC"
@@ -164,10 +188,43 @@ class CommandBar(tk.Frame):
             self._on_blur(None)
         return "break"
 
-    def show_attachment(self, text):
+    def show_attachment(self, text, full_content=None):
         self.card_label.config(text=text)
         self.attachment_card.pack(fill="x", padx=10, pady=5, before=self.top_line)
         self._recording_active = "RECORDING" in text
+        self._long_text_active = "LONG TEXT" in text
+        self._full_content = full_content
+
+    def _preview_attachment(self, e):
+        content = self._full_content
+        if not content and self._recording_active:
+            from FI_NEURAL_LINK.tools.automation.recorder import get_recorded_summary
+            content = get_recorded_summary()
+
+        if content:
+            top = tk.Toplevel(self)
+            top.title("DATA PREVIEW")
+            top.geometry("300x400")
+            top.configure(bg="#0a0a0a")
+
+            txt = tk.Text(top, bg="#0a0a0a", fg=CYBER_YELLOW, font=("Consolas", 9), padx=10, pady=10)
+            txt.pack(fill="both", expand=True)
+            txt.insert("1.0", content)
+            txt.config(state="disabled")
+
+    def _handle_paste(self, e):
+        # Check clipboard content
+        try:
+            pasted_text = self.clipboard_get()
+            words = pasted_text.split()
+            if len(words) > 50: # If long, don't paste in box, put in card
+                self.show_attachment(f"LONG TEXT (PASTED): {words[0]}... {words[-1]}", full_content=pasted_text)
+                return "break"
+        except: pass
+
+        # Default paste behavior
+        self.after(10, self._update_height)
+        return None
 
     def _remove_attachment(self, e):
         self.attachment_card.pack_forget()

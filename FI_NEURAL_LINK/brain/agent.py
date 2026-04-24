@@ -600,9 +600,10 @@ class AgentCore:
         Replays a captured user recording X times.
         Now uses LLM to reason about the recording if instructions are changed.
         """
-        from FI_NEURAL_LINK.tools.automation.recorder import get_recorded_calls, get_recorded_summary
+        from FI_NEURAL_LINK.tools.automation.recorder import get_recorded_calls, get_recorded_summary, get_recorded_domain
         recorded_calls = get_recorded_calls()
         recorded_summary = get_recorded_summary()
+        recorded_domain = get_recorded_domain()
 
         if not recorded_calls:
             self.log("No recording found to replay.", "error")
@@ -611,14 +612,17 @@ class AgentCore:
         repeat_count = decision.get("repeat_count", 1)
 
         # If user provided extra instruction ("do the same but teal"), hand off to Executor
-        if "Instruction" in str(decision) or "Correction" in str(self.current_goal):
+        if "Instruction" in str(decision) or "Correction" in str(self.current_goal) or "do the same" in self.current_goal.lower():
             self.log(f"Variation requested. Handing off to Executor with recording context.")
             handoff = {
                 "task_type": "long",
                 "goal": self.current_goal,
-                "ui_target": "Recorded Context",
+                "ui_target": recorded_domain or "Recorded Context",
                 "iterable_payload": [f"Iteration {i+1}" for i in range(repeat_count)],
-                "parameters": {"recording_summary": recorded_summary}
+                "parameters": {
+                    "recording_summary": recorded_summary,
+                    "recorded_domain": recorded_domain
+                }
             }
             return self._perform_long_task(handoff)
 
@@ -641,8 +645,11 @@ class AgentCore:
         is_resume = continuation.get("status") == "resuming"
 
         recording_context = ""
-        if "recording_summary" in continuation.get("parameters", {}):
-            recording_context = f"\n\nRECORDED ACTIONS CONTEXT:\n{continuation['parameters']['recording_summary']}\nUse this as a guide to achieve the goal."
+        params = continuation.get("parameters", {})
+        if "recording_summary" in params:
+            recording_context = f"\n\nRECORDED ACTIONS CONTEXT:\n{params['recording_summary']}\nUse this as a guide to achieve the goal."
+            if "recorded_domain" in params:
+                recording_context += f"\nRecorded Domain: {params['recorded_domain']}"
 
         # Baked-in observation cost hierarchy
         obs_cost_instructions = (

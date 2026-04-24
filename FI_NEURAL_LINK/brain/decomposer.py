@@ -61,6 +61,13 @@ def route_goal(goal: str, cache_block: str = "") -> str:
     )
 
     response_text = generate_response(system_prompt, goal, model_name=get_model("router"))
+
+    # Log the prompt and response for debugging
+    import logging
+    logger = logging.getLogger("AgentCore")
+    logger.debug(f"--- ROUTER PROMPT ---\n{goal}\n-------------------")
+    logger.debug(f"--- ROUTER RESPONSE ---\n{response_text}\n-------------------")
+
     # Raw response text is returned for logging
     return response_text
 
