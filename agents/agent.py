@@ -360,6 +360,9 @@ class AgentCore:
         """
         Routes a goal and executes it using the RouterBrain/ExecutorAgent architecture.
         """
+        self.log("="*60, "debug")
+        self.log(f"NEW GOAL RECEIVED: {goal.upper()}")
+        self.log("="*60, "debug")
         self.error_retry_count = 0
         self.total_api_calls = 0
         if self._is_busy:
@@ -377,6 +380,12 @@ class AgentCore:
 
     def _perform_goal(self, goal: str) -> list:
         self.current_goal = goal # Store for retries
+
+        from tools.automation.recorder import recorder_instance
+        if recorder_instance.events and ("recorded" in goal.lower() or "same action" in goal.lower() or "this time" in goal.lower() or "same" in goal.lower()):
+            self.log("Recording detected with variation/replay goal. Redirecting to recording replay handler.")
+            return self._perform_recording_replay({"repeat_count": 1})
+
         self.log(f"Routing goal: {goal}")
         self.loop_guard.reset()
 
