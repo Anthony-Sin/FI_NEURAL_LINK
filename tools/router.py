@@ -34,6 +34,7 @@ class ToolRouter:
             "move_to": mouse_keyboard.move_to,
             "scroll": mouse_keyboard.scroll,
             "drag_and_drop": mouse_keyboard.drag_and_drop,
+            "paste_text": mouse_keyboard.paste_text,
             "open_url": launcher.open_url,
             "launch_app": launcher.launch_app,
             "kill_process": launcher.kill_process,
@@ -44,10 +45,10 @@ class ToolRouter:
             "click_element": windows_control.click_element,
             "type_in_element": windows_control.type_in_element,
             "get_window_text": windows_control.get_window_text,
+            "wait_for_idle": windows_control.wait_for_idle,
             "read_screen": vision.read_screen,
             "analyze_screen": vision.analyze_screen,
             "execute_command": terminal.execute_command
-
         }
 
     def execute(self, action: str, params: dict) -> dict:

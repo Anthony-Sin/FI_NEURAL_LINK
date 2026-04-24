@@ -11,6 +11,7 @@ all operations will be halted and return an error status.
 """
 
 import pyautogui
+import pyperclip
 from ui.panels.stop_panel import STOP_EVENT
 
 # Enable PyAutoGUI fail-safe feature
@@ -106,3 +107,14 @@ def drag_and_drop(start_x, start_y, end_x, end_y, duration=1.0):
         return {"ok": True, "result": f"Dragged from ({start_x}, {start_y}) to ({end_x}, {end_y})"}
     except Exception as e:
         return {"ok": False, "result": str(e)}
+
+def paste_text(text: str) -> dict:
+    """Uses the system clipboard and Ctrl+V to inject text efficiently."""
+    if STOP_EVENT.is_set():
+        return {"ok": False, "result": "Halted by STOP_EVENT"}
+    try:
+        pyperclip.copy(text)
+        pyautogui.hotkey('ctrl', 'v')
+        return {"ok": True, "result": f"Pasted text block ({len(text)} chars)"}
+    except Exception as e:
+        return {"ok": False, "result": f"Clipboard error: {str(e)}"}

@@ -79,6 +79,15 @@ class HeaderPanel(tk.Frame):
         )
         self.min_btn.pack(side="right", padx=(0, 8))
 
+        # Task type toggle
+        self.task_mode = "AUTO" # AUTO, SHORT, LONG
+        self.mode_btn = tk.Label(
+            self.ctrl_row, text=f"MODE: {self.task_mode}", bg=CYBER_BLACK, fg=CYBER_BLUE,
+            font=("Consolas", 7, "bold"), cursor="hand2", padx=10
+        )
+        self.mode_btn.pack(side="right")
+        self.mode_btn.bind("<Button-1>", lambda e: self._toggle_mode())
+
     # ── Public API (backend unchanged) ───────────────────────────────────────
 
     def update_progress(self, percent: float):
@@ -117,6 +126,12 @@ class HeaderPanel(tk.Frame):
     def set_api_calls(self, count: int):
         """Updates the API call metric."""
         self.metric_label.config(text=str(count))
+
+    def _toggle_mode(self):
+        modes = ["AUTO", "SHORT", "LONG"]
+        idx = (modes.index(self.task_mode) + 1) % len(modes)
+        self.task_mode = modes[idx]
+        self.mode_btn.config(text=f"MODE: {self.task_mode}")
 
     def _tick(self):
         if self._remaining > 0:

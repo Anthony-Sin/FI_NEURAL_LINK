@@ -101,9 +101,8 @@ class ActionRecorder:
                 el = e.get("element")
                 msg = f"Clicked at ({e['x']}, {e['y']})"
                 if el:
-                    summary.append(f"Clicked {el['control_type']} '{el['name']}' at ({e['x']}, {e['y']}) in {el['window_title']}")
-                else:
-                    summary.append(f"Clicked coordinates ({e['x']}, {e['y']})")
+                    msg += f" (Target: {el['control_type']} '{el['name']}' in {el['window_title']})"
+                summary.append(msg)
             elif e["type"] == "keypress":
                 summary.append(f"Pressed key: {e['key']}")
         return "\n".join(summary)
@@ -133,7 +132,8 @@ class ActionRecorder:
                     calls.append({"name": "wait", "args": {"seconds": round(wait_time, 1)}})
 
             if event["type"] == "click":
-                # Always use exact coordinates to ensure focus on specific input fields
+                # Per user instruction: use exact screen coordinates for all clicks
+                # This ensures input focus is correctly placed where the human actually clicked.
                 calls.append({"name": "click", "args": {"x": event["x"], "y": event["y"]}})
             elif event["type"] == "keypress":
                 key = event["key"]
@@ -175,4 +175,3 @@ def get_recorded_domain():
 
 def clear_recording():
     return recorder_instance.clear()
-

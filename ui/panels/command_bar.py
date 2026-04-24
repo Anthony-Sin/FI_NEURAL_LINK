@@ -131,8 +131,8 @@ class CommandBar(tk.Frame):
             full_text = self.entry.get("1.0", tk.END).strip()
             self.entry.delete("1.0", tk.END)
             self.show_attachment(f"LONG TEXT: {words[0]}... {words[-1]}", full_content=full_text)
-        elif not getattr(self, '_recording_active', False) and not getattr(self, '_long_text_active', False):
-            self.attachment_card.pack_forget()
+
+        # We don't hide the card here anymore to allow multiple attachments
 
         if content.strip():
             self._suggestion = content.upper().split('\n')[0] + " SYNC"
@@ -140,21 +140,23 @@ class CommandBar(tk.Frame):
             self._suggestion = ""
 
     def _update_height(self):
-        """Measures text lines and updates widget height."""
+        """Measures text lines and updates widget height, growing upward."""
         try:
-            # Force update of internal geometry
-            self.entry.update_idletasks()
-            # Calculate height based on line count in the widget
-            # We look at the actual wrapped lines if possible, or just newlines
             content = self.entry.get("1.0", "end-1c")
-            line_count = content.count('\n') + 1
+            words = content.split()
 
-            # Simple check for wrapping: if width is small, we might have more lines
-            # For now, 1 line per 40 chars is a safe fallback
+            # Use approximately 200 words as the scroll threshold
+            if len(words) > 200:
+                self.entry.config(height=10) # Max visible height
+                return
+
+            # Calculate height based on line count and wrapping
+            line_count = content.count('\n') + 1
             char_count = len(content)
             est_lines = max(line_count, (char_count // 35) + 1)
 
-            new_height = min(max(est_lines, 1), 5)
+            # Cap height but allow it to grow significantly more than before
+            new_height = min(max(est_lines, 1), 10)
             self.entry.config(height=new_height)
         except: pass
 
@@ -189,11 +191,20 @@ class CommandBar(tk.Frame):
         return "break"
 
     def show_attachment(self, text, full_content=None):
-        self.card_label.config(text=text)
+        current_text = self.card_label.cget("text")
+        if current_text:
+            new_text = current_text + " | " + text
+        else:
+            new_text = text
+
+        self.card_label.config(text=new_text)
         self.attachment_card.pack(fill="x", padx=10, pady=5, before=self.top_line)
-        self._recording_active = "RECORDING" in text
-        self._long_text_active = "LONG TEXT" in text
-        self._full_content = full_content
+
+        if "RECORDING" in text:
+            self._recording_active = True
+        if "LONG TEXT" in text:
+            self._long_text_active = True
+            self._full_content = full_content
 
     def _preview_attachment(self, e):
         content = self._full_content
@@ -228,7 +239,10 @@ class CommandBar(tk.Frame):
 
     def _remove_attachment(self, e):
         self.attachment_card.pack_forget()
+        self.card_label.config(text="")
         self._recording_active = False
+        self._long_text_active = False
+        self._full_content = None
         if hasattr(self, 'on_remove_attachment'):
             self.on_remove_attachment()
 

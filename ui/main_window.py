@@ -73,8 +73,18 @@ class Dashboard:
         def wrapped(text):
             self.middle.set_last_prompt(text)
             self._check_for_timer(text)
+
+            # Combine text with attachments if present
+            extra_context = {}
+            if getattr(self.command_bar, '_long_text_active', False):
+                extra_context['pasted_text'] = self.command_bar._full_content
+
+            # Include task mode preference
+            extra_context['task_mode'] = self.header.task_mode
+
             if callback:
-                callback(text)
+                callback(text, extra_context=extra_context)
+
         self.command_bar.on_submit = wrapped
         self.command_bar.on_remove_attachment = self._clear_recorded_data
 
