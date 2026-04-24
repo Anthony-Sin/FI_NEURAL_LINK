@@ -18,7 +18,7 @@ def mock_gui_libs(monkeypatch):
 @pytest.fixture
 def mock_config(monkeypatch):
     """Provides a controlled configuration for tests."""
-    from FI_NEURAL_LINK.core import config as config_manager
+    from core import config as config_manager
     def mock_load():
         return {
             "models": {

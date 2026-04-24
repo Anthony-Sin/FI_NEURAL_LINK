@@ -1,11 +1,15 @@
 import threading
-# Updated imports for modular structure
-from FI_NEURAL_LINK.tools.router import ToolRouter
-from FI_NEURAL_LINK.tools.security.credentials import get_api_key
-from FI_NEURAL_LINK.brain.agent import AgentCore
-from FI_NEURAL_LINK.ui.main_window import Dashboard
+import os
+from dotenv import load_dotenv
+from tools.router import ToolRouter
+from tools.security.credentials import get_api_key
+from agents.agent import AgentCore
+from ui.main_window import Dashboard
 
 def main():
+    # Load environment variables from .env
+    load_dotenv()
+
     # 1. Initialize ToolRouter
     tool_router = ToolRouter()
 

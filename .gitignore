@@ -5,7 +5,7 @@ agent_execution.log
 web_visited/
 
 # Agent Data & Cache
-FI_NEURAL_LINK/data/
+data/
 
 # Configuration
 config.json
