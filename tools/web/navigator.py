@@ -22,8 +22,8 @@ def smart_web_action(url_domain: str = None, instruction: str = "", expected_tit
     last_error = ""
     failure_mem = FailureMemory()
 
-    # If no domain provided, try to find any browser window
-    if not url_domain:
+    # If no domain provided or 'current' specified, try to find any browser window or current active one
+    if not url_domain or url_domain.lower() == "current":
         url_domain = "Browser"
 
     for attempt in range(1, max_attempts + 1):
