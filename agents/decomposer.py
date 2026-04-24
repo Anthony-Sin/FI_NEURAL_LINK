@@ -3,12 +3,13 @@ from services.llm_client import generate_response
 from utils.json_parser import parse_llm_json
 from core.config import get_model
 
-def route_goal(goal: str, cache_block: str = "") -> str:
+def route_goal(goal: str, cache_block: str = "", context_block: str = "") -> str:
     """
     Acts as a Router Brain using Gemini Flash Lite.
     Classifies the goal as 'short' or 'long' and dispatches accordingly.
     """
     cache_instr = f"\n\n{cache_block}\nUse the CACHE if it matches the current goal exactly." if cache_block else ""
+    ctx_instr = f"\n\n{context_block}\nCONTEXTUAL AWARENESS: Prefer the 'Active Window' for actions. If a recording is present, use it as a template for 'same action' or 'replay' requests." if context_block else ""
 
     system_prompt = (
         "You are a pure intent classifier and dispatcher. Your job is to determine "
@@ -44,6 +45,7 @@ def route_goal(goal: str, cache_block: str = "") -> str:
         "Incorrect: [{'name': 'smart_web_action', 'args': {'instruction': 'type hello and click search'}}]\n"
         "REPETITION: If the user asks to repeat an action multiple times (e.g., 'do X 10 times'), you MUST expand the list of function_calls to include all repetitions.\n"
         "RECORDING: If the user asks to 'repeat my recording' or 'do the recorded task', emit a JSON with \"task_type\": \"replay_recording\" and \"repeat_count\": X.\n"
+        "If a recording context is provided, you should treat it as the 'template' for the current goal. If the user says 'do the same but with X', use the elements and actions from the recording but modify the 'text' or 'instruction' parameter accordingly. DO NOT open new windows if the recording or active window already shows the target application.\n"
         "The instruction must be highly specific, referencing element IDs or names from your mental model of the structure if possible: e.g., 'type explain how you work into the email input field with id identifierId'.\n"
         "Do not explain further, do not list next steps, do not reason out loud.\n\n"
         "If LONG:\n"
@@ -58,6 +60,7 @@ def route_goal(goal: str, cache_block: str = "") -> str:
         "Forbidden from beginning execution or reasoning about steps. Only emit the handoff.\n\n"
         "Return ONLY the valid JSON object."
         f"{cache_instr}"
+        f"{ctx_instr}"
     )
 
     response_text = generate_response(system_prompt, goal, model_name=get_model("router"))

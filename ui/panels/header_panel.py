@@ -1,5 +1,5 @@
 import tkinter as tk
-from ui.theme import CYBER_YELLOW, CYBER_BLACK, CYBER_PINK, CYBER_WHITE
+from ui.theme import CYBER_YELLOW, CYBER_BLACK, CYBER_PINK
 
 class HeaderPanel(tk.Frame):
     def __init__(self, parent):
@@ -14,7 +14,7 @@ class HeaderPanel(tk.Frame):
         )
         self.progress_canvas.pack(fill="x")
         self.progress_bar = self.progress_canvas.create_rectangle(
-            0, 0, 0, 1, fill=CYBER_WHITE, outline=""
+            0, 0, 0, 1, fill=CYBER_PINK, outline=""
         )
 
         # ── Yellow top border ─────────────────────────────────────────────────
@@ -29,7 +29,7 @@ class HeaderPanel(tk.Frame):
             self.status_row,
             text="IDLE",
             bg=CYBER_BLACK,
-            fg=CYBER_WHITE,
+            fg=CYBER_PINK,
             font=("Consolas", 14, "bold"),
             anchor="w"
         )
@@ -47,7 +47,7 @@ class HeaderPanel(tk.Frame):
             self.status_row,
             text="0",
             bg=CYBER_BLACK,
-            fg=CYBER_WHITE,
+            fg=CYBER_PINK,
             font=("Consolas", 14, "bold"),
             anchor="e"
         )

@@ -51,6 +51,12 @@ python main.py
 3.  **Cross-Platform Abstraction**: Create a unified UI interaction layer that detects the OS and switches between `pywinauto` (Windows), `AXUIElement` (macOS), and `at-spi2` (Linux).
 4.  **Local Vision Fallback**: Use a lightweight, local YOLO or MobileNet model for real-time icon/button detection to reduce reliance on expensive Gemini Vision calls for simple UI verification.
 
+## 💡 Contextual & Logic Suggestions for Improvement
+
+1.  **Tab-Aware Navigation**: Improve `smart_web_action` to not just find a browser window, but specifically target the active tab or a tab matching a specific URL/domain to avoid interaction with the wrong page.
+2.  **Recording-to-Template Engine**: Develop a more advanced system that converts `ActionRecorder` events into parameterized templates, allowing users to say "do what I just did but for 'Product B'" and have the agent intelligently swap only the relevant data fields.
+3.  **Proactive State Verification**: Implement a "UI Consistency Check" that runs before every action to verify the application hasn't changed states (e.g., a modal appeared or the session timed out) since the last observation.
+
 ## 🛠 Toolset Expansion Suggestions
 
 1.  **Structured File Manager**: Move beyond simple clicks to high-level file operations (e.g., `organize_directory`, `find_large_files`, `batch_rename`) using Python's `os` and `shutil` libraries.

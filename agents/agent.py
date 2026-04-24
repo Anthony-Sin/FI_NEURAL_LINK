@@ -15,6 +15,7 @@ from core.guard import LoopGuard
 from services.cache import CacheManager
 from core.config import get_model
 from ui.panels.stop_panel import STOP_EVENT
+from tools.automation.recorder import get_recorded_summary
 
 # ---------------------------------------------------------------------------
 # APP ALIAS MAP
@@ -378,16 +379,35 @@ class AgentCore:
             self._is_busy = False
             self.log("IDLE", "debug")
 
+    def _get_context_block(self) -> str:
+        """Constructs a context block describing the current system state."""
+        context = ["CURRENT SYSTEM CONTEXT:"]
+
+        # 1. Active Window
+        try:
+            from pywinauto import Desktop
+            active_win = Desktop(backend="uia").windows(enabled_only=True, visible_only=True)[0]
+            context.append(f"- Active Window: '{active_win.window_text()}'")
+        except:
+            context.append("- Active Window: Unknown")
+
+        # 2. Recording Status
+        from tools.automation.recorder import recorder_instance
+        if recorder_instance.events:
+            summary = get_recorded_summary()
+            context.append("- Active Recording detected.")
+            context.append(f"- Recorded Actions Summary:\n{summary}")
+
+        return "\n".join(context)
+
     def _perform_goal(self, goal: str) -> list:
         self.current_goal = goal # Store for retries
-
-        from tools.automation.recorder import recorder_instance
-        if recorder_instance.events and ("recorded" in goal.lower() or "same action" in goal.lower() or "this time" in goal.lower() or "same" in goal.lower()):
-            self.log("Recording detected with variation/replay goal. Redirecting to recording replay handler.")
-            return self._perform_recording_replay({"repeat_count": 1})
-
         self.log(f"Routing goal: {goal}")
         self.loop_guard.reset()
+
+        # 0. Construct context for the Router
+        context_block = self._get_context_block()
+        self.logger.debug(f"ROUTING CONTEXT:\n{context_block}")
 
         # 1. Check cache first
         try:
@@ -405,7 +425,8 @@ class AgentCore:
         try:
             cache_block = self.cache_mgr.get_cache_block()
             self.total_api_calls += 1
-            raw_decision = route_goal(goal, cache_block=cache_block)
+            # Pass context_block to route_goal
+            raw_decision = route_goal(goal, cache_block=cache_block, context_block=context_block)
             self.log(f"RAW ROUTER RESPONSE: {raw_decision}", "debug")
             decision = parse_decision(raw_decision)
         except Exception as e:

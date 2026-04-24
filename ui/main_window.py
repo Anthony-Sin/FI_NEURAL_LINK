@@ -4,7 +4,7 @@ from ui.overlay.overlay_window import OverlayWindow
 from ui.panels.header_panel import HeaderPanel
 from ui.panels.middle_panels import MiddlePanels
 from ui.panels.command_bar import CommandBar
-from ui.theme import CYBER_BLACK, CYBER_YELLOW, CYBER_PINK, CYBER_WHITE
+from ui.theme import CYBER_BLACK, CYBER_YELLOW, CYBER_PINK
 from ui.voice_system import VoiceSystem
 from tools.automation.recorder import start_recording, stop_recording
 
@@ -110,7 +110,7 @@ class Dashboard:
         if self.header.rec_btn.cget("text") == "REC":
             res = start_recording()
             if res.get("ok"):
-                self.header.rec_btn.config(text="STOP", fg=CYBER_WHITE, bg=CYBER_PINK)
+                self.header.rec_btn.config(text="STOP", fg=CYBER_PINK, bg=CYBER_PINK)
                 self.log("Recording user actions...", "warning")
             else:
                 self.log(f"Failed to start recording: {res.get('result')}", "error")
