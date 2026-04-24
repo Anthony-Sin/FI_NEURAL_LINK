@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import MagicMock, patch
-from FI_NEURAL_LINK.brain.guard import LoopGuard
+from core.guard import LoopGuard
 
 class TestLoopGuard(unittest.TestCase):
     def test_loop_detection(self):

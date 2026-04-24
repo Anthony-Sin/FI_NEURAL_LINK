@@ -1,11 +1,11 @@
 import unittest
 from unittest.mock import patch
 import json
-from FI_NEURAL_LINK.brain.decomposer import route_goal, parse_decision
+from agents.decomposer import route_goal, parse_decision
 
 class TestGoalDecomposer(unittest.TestCase):
 
-    @patch("FI_NEURAL_LINK.brain.decomposer.generate_response")
+    @patch("agents.decomposer.generate_response")
     def test_route_goal_success(self, mock_generate_response):
         # Setup mock
         mock_decision = {
@@ -21,7 +21,7 @@ class TestGoalDecomposer(unittest.TestCase):
         self.assertEqual(result, json.dumps(mock_decision))
         mock_generate_response.assert_called_once()
 
-    @patch("FI_NEURAL_LINK.brain.decomposer.generate_response")
+    @patch("agents.decomposer.generate_response")
     def test_route_goal_with_markdown(self, mock_generate_response):
         # Setup mock with markdown formatting
         mock_decision = {
@@ -43,7 +43,7 @@ class TestGoalDecomposer(unittest.TestCase):
             parse_decision("Not a JSON")
         self.assertIn("Invalid JSON format in LLM response", str(context.exception))
 
-    @patch("FI_NEURAL_LINK.brain.decomposer.generate_response")
+    @patch("agents.decomposer.generate_response")
     def test_route_goal_long_handoff(self, mock_generate_response):
         # Setup mock
         mock_decision = {

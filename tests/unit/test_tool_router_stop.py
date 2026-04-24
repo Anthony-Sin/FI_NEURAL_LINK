@@ -10,8 +10,8 @@ sys.modules["mouseinfo"] = mock_mouseinfo
 mock_pywinauto = MagicMock()
 sys.modules["pywinauto"] = mock_pywinauto
 
-from FI_NEURAL_LINK.tools.router import ToolRouter
-from FI_NEURAL_LINK.ui.panels.stop_panel import STOP_EVENT
+from tools.router import ToolRouter
+from ui.panels.stop_panel import STOP_EVENT
 
 class TestToolRouterStopEvent(unittest.TestCase):
     def setUp(self):
@@ -32,7 +32,7 @@ class TestToolRouterStopEvent(unittest.TestCase):
         # Clear STOP_EVENT for other tests
         STOP_EVENT.clear()
 
-    @patch("FI_NEURAL_LINK.tools.automation.mouse_keyboard.click")
+    @patch("tools.automation.mouse_keyboard.click")
     def test_execute_without_stop_event(self, mock_click):
         mock_click.return_value = {"ok": True, "result": "Clicked at (100, 100)"}
 

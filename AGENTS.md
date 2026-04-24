@@ -10,9 +10,9 @@ actions using mouse/keyboard/Windows UI tools.
 
 | Folder | What it owns | Key entry point |
 |--------|-------------|-----------------|
-| FI_NEURAL_LINK/brain/ | Gemini LLM calls, goal decomposition, screen OCR/vision, loop detection | AgentCore in brain/agent.py |
-| FI_NEURAL_LINK/ui/ | tkinter overlay UI, command input, live log, emergency stop | Dashboard in ui/main_window.py |
-| FI_NEURAL_LINK/tools/ | PyAutoGUI, pywinauto, subprocess, webbrowser, rate limiting, credentials | ToolRouter in tools/router.py |
+| agents/ | Gemini LLM calls, goal decomposition, screen OCR/vision, loop detection | AgentCore in agents/agent.py |
+| ui/ | tkinter overlay UI, command input, live log, emergency stop | Dashboard in ui/main_window.py |
+| tools/ | PyAutoGUI, pywinauto, subprocess, webbrowser, rate limiting, credentials | ToolRouter in tools/router.py |
 
 ## How the three modules connect
 1. User types a command → Dashboard.set_on_submit fires → AgentCore.run_goal(command)
@@ -22,9 +22,9 @@ actions using mouse/keyboard/Windows UI tools.
 5. If STOP_EVENT is set (emergency stop pressed), all tool calls halt immediately
 
 ## Integration instructions for an AI
-- All modules are under the `FI_NEURAL_LINK` package.
+- All modules are as top-level packages.
 - Import order: task_c_tools first (defines STOP_EVENT), then task_a, then task_b
-- The single shared state object is STOP_EVENT from FI_NEURAL_LINK/ui/panels/stop_panel.py
+- The single shared state object is STOP_EVENT from ui/panels/stop_panel.py
 - All tool functions return {"ok": bool, "result": str} — always check ok before proceeding
 - AgentCore.run_goal returns a list of step result dicts
 - Do not instantiate multiple Dashboard instances — it is a singleton UI

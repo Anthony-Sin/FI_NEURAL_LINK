@@ -1,0 +1,130 @@
+import tkinter as tk
+from ui.theme import CYBER_YELLOW, CYBER_BLACK, CYBER_PINK, CYBER_WHITE
+
+class HeaderPanel(tk.Frame):
+    def __init__(self, parent):
+        super().__init__(parent, bg=CYBER_BLACK)
+
+        self._duration = 1
+        self._remaining = 0
+
+        # ── 1px white progress bar at the very top ───────────────────────────
+        self.progress_canvas = tk.Canvas(
+            self, height=1, bg=CYBER_BLACK, highlightthickness=0
+        )
+        self.progress_canvas.pack(fill="x")
+        self.progress_bar = self.progress_canvas.create_rectangle(
+            0, 0, 0, 1, fill=CYBER_WHITE, outline=""
+        )
+
+        # ── Yellow top border ─────────────────────────────────────────────────
+        self.top_border = tk.Frame(self, bg=CYBER_YELLOW, height=2)
+        self.top_border.pack(fill="x")
+
+        # ── Dashboard Status: IDLE / 98.2 metric ─────────────────────────────
+        self.status_row = tk.Frame(self, bg=CYBER_BLACK)
+        self.status_row.pack(fill="x", padx=10, pady=(10, 0))
+
+        self.status_label = tk.Label(
+            self.status_row,
+            text="IDLE",
+            bg=CYBER_BLACK,
+            fg=CYBER_WHITE,
+            font=("Consolas", 14, "bold"),
+            anchor="w"
+        )
+        self.status_label.pack(side="left")
+
+        # Record button moved to header
+        self.rec_btn = tk.Label(
+            self.status_row, text="REC", bg=CYBER_BLACK, fg=CYBER_PINK,
+            font=("Consolas", 10, "bold"), cursor="hand2",
+            padx=5
+        )
+        self.rec_btn.pack(side="left", padx=10)
+
+        self.metric_label = tk.Label(
+            self.status_row,
+            text="0",
+            bg=CYBER_BLACK,
+            fg=CYBER_WHITE,
+            font=("Consolas", 14, "bold"),
+            anchor="e"
+        )
+        self.metric_label.pack(side="right")
+
+        # ── Single row: FI INITIALIZED. on left │ — ✕ on right ───────────────
+        self.ctrl_row = tk.Frame(self, bg=CYBER_BLACK)
+        self.ctrl_row.pack(fill="x", padx=10, pady=(5, 5))
+
+        self.fi_label = tk.Label(
+            self.ctrl_row,
+            text="FI INITIALIZED.",
+            bg=CYBER_BLACK,
+            fg=CYBER_YELLOW,
+            font=("Consolas", 7, "bold"),
+            anchor="w"
+        )
+        self.fi_label.pack(side="left")
+
+        self.close_btn = tk.Label(
+            self.ctrl_row, text="✕", bg=CYBER_BLACK, fg=CYBER_PINK,
+            font=("Consolas", 11, "bold"), cursor="hand2"
+        )
+        self.close_btn.pack(side="right")
+
+        self.min_btn = tk.Label(
+            self.ctrl_row, text="—", bg=CYBER_BLACK, fg=CYBER_YELLOW,
+            font=("Consolas", 11, "bold"), cursor="hand2"
+        )
+        self.min_btn.pack(side="right", padx=(0, 8))
+
+    # ── Public API (backend unchanged) ───────────────────────────────────────
+
+    def update_progress(self, percent: float):
+        """Updates the 1px white progress bar (0 to 100)."""
+        w = self.progress_canvas.winfo_width()
+        if w <= 1: # Widget might not be fully rendered yet
+            w = 288 # Use fixed dashboard width as fallback
+        x1 = (percent / 100.0) * w
+        self.progress_canvas.coords(self.progress_bar, 0, 0, x1, 1)
+
+    def set_doing(self, text: str):
+        """Sets the current doing status with context awareness."""
+        clean = text.strip().upper()
+
+        if "NAVIGAT" in clean or "OPEN" in clean:
+            self.status_label.config(text="NAVIGATING", fg="#00f0ff") # Blue
+        elif "TYPE" in clean or "WRITE" in clean:
+            self.status_label.config(text="TYPING", fg="#fcee0a") # Yellow
+        elif "CLICK" in clean or "PRESS" in clean:
+            self.status_label.config(text="INTERACTING", fg="#00ff88") # Green
+        elif "WAIT" in clean or "SLEEP" in clean:
+            self.status_label.config(text="WAITING", fg="#ffaa00") # Orange
+        elif "ANALYZ" in clean or "VISION" in clean:
+            self.status_label.config(text="ANALYZING", fg="#ff003c") # Pink
+        elif "IDLE" in clean:
+            self.status_label.config(text="IDLE", fg="#ffffff")
+        else:
+            self.status_label.config(text="ACTIVE", fg="#ffffff")
+
+    def start_timer(self, duration_seconds: int):
+        self._duration = max(duration_seconds, 1)
+        self._remaining = duration_seconds
+        self.set_doing("ACTIVE")
+        self._tick()
+
+    def set_api_calls(self, count: int):
+        """Updates the API call metric."""
+        self.metric_label.config(text=str(count))
+
+    def _tick(self):
+        if self._remaining > 0:
+            self._remaining -= 1
+            # Update progress based on remaining time
+            percent = 100 * (1 - (self._remaining / self._duration))
+            self.update_progress(percent)
+            self.after(1000, self._tick)
+        else:
+            self.set_doing("IDLE")
+            self.update_progress(0)

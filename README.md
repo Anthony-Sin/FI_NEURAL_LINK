@@ -2,65 +2,24 @@
 
 FI_NEURAL_LINK is a cyberpunk-themed, AI-powered desktop automation system that translates natural language commands into discrete OS-level actions. It features a strict dual-agent architecture designed for maximum efficiency, reliability, and low latency.
 
-## 🛠 Detailed Pipeline & Architecture
+## 🛠 Project Structure
 
-The system operates on a dual-agent model where a fast classifier (Router) handles routine tasks and a robust executor handles complex, iterative goals.
+The project is organized into modular components:
 
-### 1. Router Brain (Classification, Dispatch & Cache)
-Powered by **Gemini 2.5 Flash Lite**, this agent acts as the system's pre-frontal cortex:
-- **Cache Lookup**: Before calling the LLM, the `CacheManager` checks for a pattern match (e.g., `open * and search for *`). If a hit is found, it reconstructs the plan using extracted variables and executes immediately.
-- **Intent Classification**: If no cache hit, the Router performs a single reasoning pass to classify the goal as **Short** or **Long**.
-- **Short Tasks**: For simple goals, it emits a `text` summary and a list of `function_calls` for immediate sequential execution.
-- **Long Tasks**: For complex goals, it emits a **Handoff JSON** containing the goal, UI target, and any iterable payload. It is strictly forbidden from beginning execution or listing steps.
-- **Cache Promotion**: Successful "Short Task" executions are recorded. If a specific goal pattern succeeds 3 times, it is promoted to the permanent cache for sub-100ms dispatch in future sessions.
+- **`agents/`**: Contains the core logic for goal decomposition (`decomposer.py`) and the execution loop (`agent.py`).
+- **`services/`**: Infrastructure services including LLM interaction (`llm_client.py`), caching (`cache.py`), and failure memory (`memory.py`).
+- **`tools/`**: OS-level automation tools for windows control, browser navigation, and terminal execution.
+- **`ui/`**: A cyberpunk-themed tkinter dashboard for interaction and monitoring.
+- **`perception/`**: Screen capture and OCR capabilities.
+- **`core/`**: System-wide configuration and safety guards.
+- **`utils/`**: Helper utilities like JSON parsing.
 
-### 2. Executor Agent (The Iterative Loop)
-Also powered by **Gemini 2.5 Flash Lite**, this agent manages complex tasks through a robust **Act → Observe → Decide** loop:
-- **Stateless Continuation**: Each turn, the agent receives a "continuation" object containing the current state, remaining queue, and last action result.
-- **Observation Cost Hierarchy**: To minimize API costs and latency, the agent follows a strict observation protocol:
-    1.  **timer**: Preferred for predictable latency (e.g., app launching).
-    2.  **next_action**: Used for deterministic transitions where no check is needed.
-    3.  **read_screen (OCR)**: Medium cost, used for extracting specific text.
-    4.  **screenshot (Vision)**: Highest cost, used only when the UI state is unpredictable.
-- **Loop Guard**: A `LoopGuard` monitors the last $N$ actions. If it detects a repeating sequence of descriptions, it raises a `RuntimeError` to prevent infinite execution loops.
+## 🧠 Navigation & Automation Strategy
 
-### 3. Safety & Control Systems
-- **Rate Limiter**: Controls the frequency of tool calls (default: 30 calls per 10 seconds) to prevent system flooding or API abuse.
-- **STOP_EVENT**: A global interrupt signal that can be triggered from the UI (Stop Panel) or programmatically to immediately halt all automation.
-- **Credential Safety**: The `CredentialManager` ensures API keys are sourced from secure environment variables.
+The system operates on a dual-agent model:
 
-## 🧠 Navigation & Web Analysis Strategy
-The agent follows a specialized protocol for browser-based automation:
-1.  **Isolation**: Browsers are always launched with the `--new-window` flag to ensure a clean, predictable workspace.
-2.  **Webpage Structure Extraction**: The agent uses `save_webpage_structure` (BeautifulSoup) to map interactive elements to a local JSON.
-3.  **Locality over Vision**: Instead of relying on screenshots, the agent searches the saved structure to find element IDs and attributes, enabling fast UI Automation via `pywinauto`.
-4.  **Login Awareness**: The Router Brain is instructed to verify if a site (e.g., Gmail) is already in a "logged-in" state before attempting credential entry.
-
-## ⚠️ Unexpected UI State Handling
-- **Loading Spinners**: The system extends timers and re-verifies via screenshot if a process is taking longer than expected.
-- **CAPTCHAs**: Triggers a `human_intervention_required` status, pausing execution for the user to solve the challenge.
-- **Unexpected Modals**: The agent attempts to dismiss modals using general click actions before resuming the primary task.
-
-## 🧠 Capabilities & Tool Priority
-1.  **UI Automation (`click_element`, `type_in_element`)**: Primary method using pywinauto for deep OS/Browser integration.
-2.  **Hardware Simulation (`click`, `type_text`)**: Secondary method using pyautogui for coordinate-based interaction.
-3.  **OCR & Vision**: Fallback methods for unstructured or non-accessible UIs.
-
-## 🚩 Limitations
-- **Brittle Scraping**: The current `requests`-based scraper may fail on JavaScript-heavy pages.
-- **Windows-Centric**: Deeply coupled with Windows UI Automation (pywinauto).
-
-## 💡 Architectural Suggestions for Improvement
-1.  **Semantic Memory Layer**: Integrate a Vector Database (e.g., ChromaDB) to store and retrieve past successful execution traces, allowing the agent to "remember" how to solve similar complex tasks without re-planning.
-2.  **Router Feedback Loop**: If a "Short Task" generated by the Router fails, the system should automatically hand it off to the Executor Agent with the failure context, rather than simply stopping.
-3.  **Cross-Platform Abstraction**: Create a unified UI interaction layer that detects the OS and switches between `pywinauto` (Windows), `AXUIElement` (macOS), and `at-spi2` (Linux).
-4.  **Local Vision Fallback**: Use a lightweight, local YOLO or MobileNet model for real-time icon/button detection to reduce reliance on expensive Gemini Vision calls for simple UI verification.
-
-## 🛠 Toolset Expansion Suggestions (Low-Level OS)
-1.  **Secure Terminal Tool**: A tool that allows the agent to execute PowerShell or Bash commands in a restricted environment, enabling tasks like package installation or system configuration.
-2.  **Structured File Manager**: Move beyond simple clicks to high-level file operations (e.g., `organize_directory`, `find_large_files`, `batch_rename`) using Python's `os` and `shutil` libraries.
-3.  **System Performance Monitor**: A tool using `psutil` that allows the agent to diagnose slow performance by identifying resource-heavy processes and offering to terminate them.
-4.  **Registry & Config Manager**: A specialized tool for reading and writing to the Windows Registry or `.ini`/`.json` config files safely, allowing the agent to "tune" the OS based on user requests.
+1.  **Router Brain**: A fast classifier that handles routine tasks or dispatches complex goals to the Executor.
+2.  **Executor Agent**: Manages complex, multi-step tasks through a robust **Act → Observe → Decide** loop.
 
 ## 🛠 Getting Started
 
@@ -78,3 +37,9 @@ pip install -r requirements.txt
 ```bash
 python main.py
 ```
+
+## 🧠 Key Features
+- **Intelligent Caching**: sub-100ms dispatch for recurring commands.
+- **Loop Protection**: Prevents infinite execution loops in unpredictable UIs.
+- **Cyberpunk HUD**: Real-time monitoring of agent activity and OS metrics.
+- **Dual-Agent Architecture**: Balanced between speed and reliability.

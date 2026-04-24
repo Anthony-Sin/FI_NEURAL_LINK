@@ -2,7 +2,7 @@ import pytest
 import os
 import json
 from datetime import datetime, timedelta
-from FI_NEURAL_LINK.brain.cache import CacheManager
+from services.cache import CacheManager
 
 @pytest.fixture
 def cache_mgr(tmp_path):

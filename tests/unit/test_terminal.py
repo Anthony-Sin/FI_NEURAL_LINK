@@ -1,11 +1,11 @@
 import pytest
 import os
 import json
-from FI_NEURAL_LINK.tools.system.terminal import execute_command
+from tools.system.terminal import execute_command
 
 def test_terminal_whitelist(monkeypatch, tmp_path):
     # Setup mock config in a temp directory
-    data_dir = tmp_path / "FI_NEURAL_LINK" / "data"
+    data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True)
     config_file = data_dir / "terminal_config.json"
 
@@ -21,7 +21,7 @@ def test_terminal_whitelist(monkeypatch, tmp_path):
     config_file.write_text(json.dumps(config))
 
     # Patch the config path in the module
-    import FI_NEURAL_LINK.tools.system.terminal as terminal
+    import tools.system.terminal as terminal
     monkeypatch.setattr(terminal, "os", MagicMock(path=os.path, exists=os.path.exists))
 
     # We need to ensure load_terminal_config points to our temp file
