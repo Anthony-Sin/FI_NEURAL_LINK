@@ -52,6 +52,7 @@ def main():
     # 7. Start the Dashboard
 
     print("Dashboard initialized. Launching GUI...")
+    dashboard.root.deiconify() # Only show the overlay window
 
     # We use the root mainloop directly in the main thread to ensure the process exits when the window is closed.
     # Note: dashboard.start() used to launch it in a daemon thread, but we'll use this approach instead.

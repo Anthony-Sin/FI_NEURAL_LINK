@@ -422,6 +422,11 @@ class AgentCore:
         context_block = self._get_context_block(extra_context=extra_context)
         self.logger.debug(f"ROUTING CONTEXT:\n{context_block}")
 
+        from tools.automation.recorder import recorder_instance
+        if recorder_instance.events and ("recorded" in goal.lower() or "same action" in goal.lower() or "this time" in goal.lower() or "same" in goal.lower()):
+            self.log("Recording detected with variation/replay goal. Redirecting to recording replay handler.")
+            return self._perform_recording_replay({"repeat_count": 1})
+
         # 1. Check cache first
         try:
             cached_plan = self.cache_mgr.match_and_reconstruct(goal)

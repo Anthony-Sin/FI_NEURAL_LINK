@@ -11,6 +11,9 @@ class OverlayWindow(tk.Tk):
         self.overrideredirect(True)
         self.configure(bg="#000000")
 
+        # Hide the main tk window (the title bar area etc)
+        self.withdraw()
+
         if platform.system() == "Windows":
             try:
                 from ctypes import windll
