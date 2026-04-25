@@ -1,18 +1,16 @@
 import tkinter as tk
 import platform
 
-class OverlayWindow(tk.Tk):
-    def __init__(self):
-        super().__init__()
+class OverlayWindow(tk.Toplevel):
+    def __init__(self, master=None):
+        super().__init__(master)
+        self.withdraw() # Start hidden
 
         # Window attributes
         self.attributes("-topmost", True)
         self.attributes("-alpha", 0.95)
         self.overrideredirect(True)
         self.configure(bg="#000000")
-
-        # Hide the main tk window (the title bar area etc)
-        self.withdraw()
 
         if platform.system() == "Windows":
             try:
@@ -59,6 +57,7 @@ class OverlayWindow(tk.Tk):
 
     def show(self):
         self.deiconify()
+        self.attributes("-topmost", True)
 
     def hide(self):
         self.withdraw()

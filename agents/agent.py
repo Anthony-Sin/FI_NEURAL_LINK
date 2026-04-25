@@ -15,7 +15,7 @@ from core.guard import LoopGuard
 from services.cache import CacheManager
 from core.config import get_model
 from ui.panels.stop_panel import STOP_EVENT
-from tools.automation.recorder import get_recorded_summary
+from tools.automation.recorder import recorder_instance, get_recorded_calls, get_recorded_summary, get_recorded_domain
 
 # ---------------------------------------------------------------------------
 # APP ALIAS MAP
@@ -395,10 +395,9 @@ class AgentCore:
             context.append("- Active Window: Unknown")
 
         # 2. Recording Status
-        from tools.automation.recorder import recorder_instance
-        if recorder_instance.events:
+        if recorder_instance.events or (extra_context and extra_context.get('has_recording')):
             summary = get_recorded_summary()
-            context.append("- Active Recording detected.")
+            context.append("- Active Recording ATTACHED AND READY.")
             context.append(f"- Recorded Actions Summary (Use these exact coordinates for focus):\n{summary}")
 
             # Logic to help model focus: if last recorded action was a click on an Edit field,
@@ -421,11 +420,6 @@ class AgentCore:
         # 0. Construct context for the Router
         context_block = self._get_context_block(extra_context=extra_context)
         self.logger.debug(f"ROUTING CONTEXT:\n{context_block}")
-
-        from tools.automation.recorder import recorder_instance
-        if recorder_instance.events and ("recorded" in goal.lower() or "same action" in goal.lower() or "this time" in goal.lower() or "same" in goal.lower()):
-            self.log("Recording detected with variation/replay goal. Redirecting to recording replay handler.")
-            return self._perform_recording_replay({"repeat_count": 1})
 
         # 1. Check cache first
         try:
@@ -676,7 +670,6 @@ class AgentCore:
         Replays a captured user recording X times.
         Now uses LLM to reason about the recording if instructions are changed.
         """
-        from tools.automation.recorder import get_recorded_calls, get_recorded_summary, get_recorded_domain
         recorded_calls = get_recorded_calls()
         recorded_summary = get_recorded_summary()
         recorded_domain = get_recorded_domain()
@@ -686,9 +679,13 @@ class AgentCore:
             return []
 
         repeat_count = decision.get("repeat_count", 1)
+        goal_lower = self.current_goal.lower()
 
         # If user provided extra instruction ("do the same but teal"), hand off to Executor
-        if "Instruction" in str(decision) or "Correction" in str(self.current_goal) or "do the same" in self.current_goal.lower():
+        variation_keywords = ["but", "instead", "this time", "write", "type", "with"]
+        is_variation = any(kw in goal_lower for kw in variation_keywords)
+
+        if "Instruction" in str(decision) or "Correction" in str(self.current_goal) or is_variation or "do the same" in goal_lower or "smae" in goal_lower:
             self.log(f"Variation requested. Handing off to Executor with recording context.")
             handoff = {
                 "task_type": "long",

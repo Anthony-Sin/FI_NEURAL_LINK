@@ -10,7 +10,10 @@ from tools.automation.recorder import start_recording, stop_recording
 
 class Dashboard:
     def __init__(self):
-        self.root = OverlayWindow()
+        self.tk_root = tk.Tk()
+        self.tk_root.withdraw() # Hide the main root window
+
+        self.root = OverlayWindow(self.tk_root)
 
         # Sidebar container with left yellow border
         self.sidebar = tk.Frame(self.root, bg=CYBER_BLACK, highlightthickness=0)
@@ -78,6 +81,9 @@ class Dashboard:
             extra_context = {}
             if getattr(self.command_bar, '_long_text_active', False):
                 extra_context['pasted_text'] = self.command_bar._full_content
+
+            if getattr(self.command_bar, '_recording_active', False):
+                extra_context['has_recording'] = True
 
             # Include task mode preference
             extra_context['task_mode'] = self.header.task_mode

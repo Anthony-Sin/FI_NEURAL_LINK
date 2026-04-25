@@ -9,7 +9,7 @@ def route_goal(goal: str, cache_block: str = "", context_block: str = "", task_m
     Classifies the goal as 'short' or 'long' and dispatches accordingly.
     """
     cache_instr = f"\n\n{cache_block}\nUse the CACHE if it matches the current goal exactly." if cache_block else ""
-    ctx_instr = f"\n\n{context_block}\nCONTEXTUAL AWARENESS: Prefer the 'Active Window' for actions. If a recording is present, use it as a template for 'same action' or 'replay' requests." if context_block else ""
+    ctx_instr = f"\n\n{context_block}\nCONTEXTUAL AWARENESS: Prefer the 'Active Window' for actions. If a recording is present, it is your 'template'. Use it for 'same', 'replay', or 'redo' requests, even if there are typos like 'smae'." if context_block else ""
 
     mode_hint = ""
     if task_mode == "SHORT":
@@ -54,7 +54,7 @@ def route_goal(goal: str, cache_block: str = "", context_block: str = "", task_m
         "REPETITION: If the user asks to repeat an action multiple times (e.g., 'do X 10 times'), you MUST expand the list of function_calls to include all repetitions.\n"
         "SCHEDULED ACTIONS: If the user asks to do something every N seconds (e.g., 'type hello every 10 seconds'), you MUST emit a LONG task handoff with the goal and interval parameters.\n"
         "RECORDING: If the user asks to 'repeat my recording' or 'do the recorded task', emit a JSON with \"task_type\": \"replay_recording\" and \"repeat_count\": X.\n"
-        "If a recording context is provided, you should treat it as the 'template' for the current goal. If the user says 'do the same but with X', use the elements and actions from the recording but modify the 'text' or 'instruction' parameter accordingly. DO NOT open new windows if the recording or active window already shows the target application.\n"
+        "If a recording context is provided, you MUST treat it as the 'template' for the current goal. If the user says 'do the same (or smae) but with X', 'again', 'redo', or 'replay', use the elements and actions from the recording context but modify the 'text', 'instruction', or 'payload' parameters to match the new goal. DO NOT open new windows if the recording or active window already shows the target application. Prefer replaying the recorded action sequence with modifications. CRITICAL: Use the absolute screen coordinates (x, y) provided in the 'Recorded Actions Summary' when replaying clicks to ensure input focus.\n"
         "The instruction must be highly specific, referencing element IDs or names from your mental model of the structure if possible: e.g., 'type explain how you work into the email input field with id identifierId'.\n"
         "Do not explain further, do not list next steps, do not reason out loud.\n\n"
         "If LONG:\n"
